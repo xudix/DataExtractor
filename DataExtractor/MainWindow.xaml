@@ -1,0 +1,46 @@
+﻿<Window x:Class="DataExtractor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DataExtractor"
+        mc:Ignorable="d"
+        Title="Data Extractor: Data Extraction and Visulization" Height="250" Width="500" MinWidth="300" MinHeight="100">
+    <Grid Margin="5">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition />
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Label HorizontalAlignment="Left">Start Date</Label>
+        <TextBox x:Name="startDateInput" Grid.Column="1" Width="100" HorizontalAlignment="Left" Margin="0,2" ></TextBox>
+        <Label Grid.Column="3" HorizontalAlignment="Left">Start Time</Label>
+        <TextBox x:Name="startTimeInput" Grid.Column="4" Width="100" HorizontalAlignment="Left" Margin="0,2" ></TextBox>
+        <Label Grid.Row="1" HorizontalAlignment="Left">End Date</Label>
+        <TextBox x:Name="endDateInput" Grid.Row="1" Grid.Column="1" Width="100" HorizontalAlignment="Left" Margin="0,2" ></TextBox>
+        <Label Grid.Row="1" Grid.Column="3" HorizontalAlignment="Left">End Time</Label>
+        <TextBox x:Name="endTimeInput" Grid.Row="1" Grid.Column="4" Width="100" HorizontalAlignment="Left" Margin="0,2" ></TextBox>
+        <Label Grid.Row="2" HorizontalAlignment="Left">Tags</Label>
+        <Button x:Name="pickTagBottom" Grid.Row="2" Grid.Column="1" Margin="0,2" Click="PickTagBottom_Click">
+            Pick Tags
+        </Button>
+        <Label Grid.Row="2" Grid.Column="3" HorizontalAlignment="Left">Data Files</Label>
+        <Button x:Name="pickFileBottom" Grid.Row="2" Grid.Column="4" Margin="0,2" Width="100" 
+                HorizontalAlignment="Left" Click="PickFileBottom_Click">
+            Pick Data Files
+        </Button>
+        <TextBox x:Name="tagInput" Grid.ColumnSpan="2" Grid.Row="3" Margin="5,0,0,0" VerticalScrollBarVisibility="Visible"></TextBox>
+        <TextBox x:Name="fileInput" Grid.ColumnSpan="2" Grid.Column="3" Grid.Row="3" Margin="5,0,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"></TextBox>
+        <Button Name="plotButton" Grid.Column="5" Grid.Row="4" Margin="0,4,0,0" Click="PlotButton_Click">Plot</Button>
+    </Grid>
+</Window>
