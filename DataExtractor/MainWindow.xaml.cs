@@ -16,6 +16,9 @@ using Microsoft.Win32;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using System.Collections;
+using LiveCharts;
+using LiveCharts.Defaults;
+using LiveCharts.Wpf;
 
 namespace DataExtractor
 {
@@ -423,6 +426,7 @@ namespace DataExtractor
                     }
                 }
             }
+            // Get data from the listed files
 
         }
 
@@ -787,6 +791,51 @@ namespace DataExtractor
             return true;
         }
 
+        public static SeriesCollection ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
+        {
+            // Extract data from all files in fileRecords according to the tagList between startDateTime and endDateTime
+            SeriesCollection collectionToPlot;
+
+
+            foreach(FileRecord record in fileRecords)
+            {
+                
+            }
+
+
+            return collectionToPlot;
+        }
+
+        private static List<float[]> readCSV(DateTime startDateTime, DateTime endDateTime, string[] tagList, string fileName)
+        {
+            List<float[]> data = new List<float[]>();
+            string line;
+            using (StreamReader sr = new StreamReader(fileName))
+            {
+                // read the first line that contains the tag names
+                string titleLine = sr.ReadLine();
+                string[] splitTitleLine = titleLine.Split(new char[] { ',' });
+                // number of columns in the csv file
+                int nColumn = splitTitleLine.Length;
+                // if the file contain a "date" or ";date" column, the method for translating the datetime is different
+                if(splitTitleLine[0].ToLower() == "date" || splitTitleLine[0].ToLower() == ";date")
+                {
+                    
+                }
+                else
+                {
+
+                }
+                // Find where the tags are located
+                int[] indexOfTags = new int[tagList.Length];
+                for (int i=0; i<tagList.Length; i++)
+                {
+                    indexOfTags[i] = Array.FindIndex(splitTitleLine, (string s) => s == tagList[i]);
+                }
+
+            }
+        }
+
         // A FileRecord include the file pathname, start time, and whether the file is needed.
         // The constructor will determine the start time based on the file name.
         // 
@@ -830,5 +879,7 @@ namespace DataExtractor
                 return startTime.CompareTo(other.startTime);
             }
         }
+
+        
     }
 }
