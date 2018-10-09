@@ -808,29 +808,51 @@ namespace DataExtractor
 
         private static List<float[]> readCSV(DateTime startDateTime, DateTime endDateTime, string[] tagList, string fileName)
         {
+            // This is a List that contains the data to be returend
             List<float[]> data = new List<float[]>();
-            string line;
+            // A string that represents a line from the csv file. line1 and line2 are the first two lines.
+            // Reading the first two lines allows the method to determine the time interval between the two lines, which is used to size the arrays
+            string line, line1, line2, titleLine;
+            string[] splitTitleLine
+            // Array of integers corresponding to the position of the tags in a line
+            int[] indexOfTags = new int[tagList.Length];
+            // Add this offset to compensate for the date and time columns
+            // If the file does not contain a date column, offset = 1; If the file contains a date column, offset = 2
+            // nColumn is the number of columns in a csv file
+            int offset, nColumn;
+
+            // In this method, we will use long integers (Int64) to represent the date and time. It encodes the time as yyyyMMddHHmmss
+            long startTimeInt = Int64.Parse(startDateTime.ToString("yyyyMMddHHmmss"));
+            long endTimeInt = Int64.Parse(endDateTime.ToString("yyyyMMddHHmmss"));
             using (StreamReader sr = new StreamReader(fileName))
             {
                 // read the first line that contains the tag names
-                string titleLine = sr.ReadLine();
-                string[] splitTitleLine = titleLine.Split(new char[] { ',' });
+                titleLine = sr.ReadLine();
+                splitTitleLine = titleLine.Split(new char[] { ',' });
                 // number of columns in the csv file
-                int nColumn = splitTitleLine.Length;
+                nColumn = splitTitleLine.Length;
                 // if the file contain a "date" or ";date" column, the method for translating the datetime is different
-                if(splitTitleLine[0].ToLower() == "date" || splitTitleLine[0].ToLower() == ";date")
-                {
-                    
-                }
+                if (splitTitleLine[0].ToLower() == "date" || splitTitleLine[0].ToLower() == ";date")
+                    offset = 2;
                 else
-                {
+                    offset = 1;
 
-                }
                 // Find where the tags are located
-                int[] indexOfTags = new int[tagList.Length];
                 for (int i=0; i<tagList.Length; i++)
                 {
                     indexOfTags[i] = Array.FindIndex(splitTitleLine, (string s) => s == tagList[i]);
+                    if (indexOfTags[i] == -1)
+                    {
+                        MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + fileName + "\".");
+                    }
+                }
+                // Read the first two lines, and figure out the time interval between two lines in the csv file
+                line1 = sr.ReadLine();
+                line2 = sr.ReadLine();
+                if (offset == 1)
+                {
+                    // There's no date column. The date is included in the Time column
+
                 }
 
             }
