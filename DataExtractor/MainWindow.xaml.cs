@@ -812,10 +812,11 @@ namespace DataExtractor
             List<float[]> data = new List<float[]>();
             // A string that represents a line from the csv file. line1 and line2 are the first two lines.
             // Reading the first two lines allows the method to determine the time interval between the two lines, which is used to size the arrays
-            string line, line1, line2, titleLine;
-            string[] splitTitleLine
+            string line, titleLine, line1, line2, timestr1, timestr2;
+            string[] splitTitleLine;
             // Array of integers corresponding to the position of the tags in a line
             int[] indexOfTags = new int[tagList.Length];
+            int[] sortedIndex = new int[tagList.Length];
             // Add this offset to compensate for the date and time columns
             // If the file does not contain a date column, offset = 1; If the file contains a date column, offset = 2
             // nColumn is the number of columns in a csv file
@@ -855,6 +856,106 @@ namespace DataExtractor
 
                 }
 
+            }
+        }
+
+        private static string ReadStrUntil(string str, char end, int nth = 1)
+        {
+            // read the character in "str" one by one until the "nth" occurance of char "end"
+            // write anything between the (n-1)th and nth of "end" to out result
+            int endCount = 0; // the number of "end" seen
+            int writeCount = 0;
+            char[] cResult = new char[16];
+            foreach(char c in str)
+            {
+                if (c == end) // see a end char
+                    endCount++;
+                else if(endCount == nth - 1)
+                {
+                    cResult[writeCount] = c;
+                    writeCount++;
+                    if (writeCount == cResult.Length)
+                        Array.Resize(ref cResult, cResult.Length * 2);
+                }
+                if (endCount == nth)
+                    break;
+            }
+            return new string(cResult, 0, writeCount);
+        }
+
+        private static List<string> ReadStrUntil(string str, char end, IList<int> nth)
+        {
+            // read the character in "str" one by one until the "nth" occurance of char "end"
+            // write anything between the (n-1)th and nth of "end" to out result
+            // This overload method do the same for every number in List nth
+            // The caller should guarentee that: 
+            // 1. The List nth is sorted in ascending order
+            // 2. The List result is at least as large as the List nth
+            // 3. The array in List result should be large enough for the field in the csv
+            int endCount = 0; // the number of "end" seen
+            int itemCount = 0; // number of items completed in the List nth
+            int writeCount = 0;
+            char[] cResult = new char[16];
+            List<string> result = new List<string>(nth.Count);
+
+            foreach (char c in str)
+            {
+                if (c == end) // see a end char
+                    endCount++;
+                else if (endCount == nth[itemCount] - 1) // not a end char, and it's between the (n-1)th and nth end char
+                {
+                    cResult[writeCount] = c;
+                    writeCount++;
+                    if (writeCount == cResult.Length)
+                        Array.Resize(ref cResult, cResult.Length * 2);
+                }
+                if (endCount == nth[itemCount]) // found the nth end char. add the result to the List of string
+                {
+                    result.Add(new string(cResult, 0, writeCount));
+                    // then start over for the next item in nth
+                    writeCount = 0;
+                    itemCount++;
+                }
+                if (itemCount == nth.Count)
+                    break;
+            }
+            return result;
+        }
+
+        private static void ReadStrUntil(string str, char end, IList<int> nth, ref float[] result)
+        {
+            // read the character in "str" one by one until the "nth" occurance of char "end"
+            // Convert anything between the (n-1)th and nth of "end" to float and write to "result"
+            // This overload method do the same for every number in List nth
+            // The caller should guarentee that: 
+            // 1. The List nth is sorted in ascending order
+            // 2. The List result is at least as large as the List nth
+            // 3. The array in result should be long enough to take all fileds specified by "nth"
+            int endCount = 0; // the number of "end" seen
+            int itemCount = 0; // number of items completed in the List nth
+            int writeCount = 0;
+            char[] cResult = new char[16];
+
+            foreach (char c in str)
+            {
+                if (c == end) // see a end char
+                    endCount++;
+                else if (endCount == nth[itemCount] - 1) // not a end char, and it's between the (n-1)th and nth end char
+                {
+                    cResult[writeCount] = c;
+                    writeCount++;
+                    if (writeCount == cResult.Length)
+                        Array.Resize(ref cResult, cResult.Length * 2);
+                }
+                if (endCount == nth[itemCount]) // found the nth end char. convert the result to string then float, and add to the array
+                {
+                    result[itemCount] = Single.Parse(new string(cResult, 0, writeCount));
+                    // then start over for the next item in nth
+                    writeCount = 0;
+                    itemCount++;
+                }
+                if (itemCount == nth.Count)
+                    break;
             }
         }
 
