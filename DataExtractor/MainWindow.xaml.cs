@@ -791,78 +791,120 @@ namespace DataExtractor
             return true;
         }
 
-        public static SeriesCollection ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
+        // Extract data from all files in fileRecords according to the tagList between startDateTime and endDateTime
+        // All files in the fileRecords will be opened
+        private static SeriesCollection ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
         {
-            // Extract data from all files in fileRecords according to the tagList between startDateTime and endDateTime
+            
             SeriesCollection collectionToPlot;
+            // This is a List that contains the data to be returend
+            List<float[]> data = new List<float[]>();
+            // A string that represents a line from the csv file. line1 and line2 are the first two lines.
+            // Reading the first two lines allows the method to determine the time interval between the two lines, which is used to size the arrays
+            string line, titleLine, line1, line2, timestr1, timestr2, datestr1, datestr2;
+            string[] splitTitleLine;
+            // delimiter used by the file
+            char delimiter;
+            // Array of integers corresponding to the position of the tags in a line
+            
+            List<IndexWithPosition> indexOfTags = new List<IndexWithPosition>(tagList.Length);
 
+            // nColumn is the number of columns in a csv file
+            // nPoints is the estimated numbe of data points to be extracted, based on the time interval between points
+            int nColumn, nPoints;
 
-            foreach(FileRecord record in fileRecords)
+            // In this method, we will use long integers (Int64) to represent the date and time. It encodes the time as yyyyMMddHHmmss
+            long startTimeInt = Int64.Parse(startDateTime.ToString("yyyyMMddHHmmss"));
+            long endTimeInt = Int64.Parse(endDateTime.ToString("yyyyMMddHHmmss"));
+
+            foreach (FileRecord record in fileRecords)
             {
-                
+                using (StreamReader sr = new StreamReader(record.fileName))
+                {
+                    switch (record.fileType.ToLower())
+                    {
+                        case "csv":
+                            delimiter = ',';
+                            break;
+                        case "txt":
+                            delimiter = '\t';
+                            break;
+                        default:
+                            throw new ArgumentException("Unsupported File Type: " + record.fileType);
+
+                    }
+                    // read the first line that contains the tag names
+                    titleLine = sr.ReadLine();
+                    splitTitleLine = titleLine.Split(new char[] { delimiter });
+                    // number of columns in the csv file
+                    nColumn = splitTitleLine.Length;
+
+
+                    // Find where the tags are located
+                    for (int i = 0; i < tagList.Length; i++)
+                    {
+                        indexOfTags.Add(new IndexWithPosition(Array.FindIndex(splitTitleLine, (string s) => s == tagList[i]),i));
+                        if (indexOfTags[i].Index == -1) // The tag is not found
+                        {
+                            MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + record.fileName + "\".");
+                        }
+                    }
+                    // Sort the List indexOfTags based on the index. Thus, we can get the value of the tags one by one as we go through one line of the data file
+                    indexOfTags.Sort();
+                    // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
+                    // // Try to estimate the number of points to be extracted. Initialize array accordingly
+                    if (data.Count == 0)
+                    {
+                        // Read the first two lines, and figure out the time interval between two lines in the csv file
+                        line1 = sr.ReadLine();
+                        line2 = sr.ReadLine();
+                        // if the file contain a "date" or ";date" column, the method for translating the datetime is different
+                        if (splitTitleLine[0].ToLower() == "date" || splitTitleLine[0].ToLower() == ";date")
+                        {
+                            timestr1 = ReadStrUntil(line1, delimiter, 2);
+                            timestr2 = ReadStrUntil(line2, delimiter, 2);
+                            if (timestr1 == timestr2) // In some files the first line is the same as the second line. 
+                            {
+                                line1 = line2;
+                                line2 = sr.ReadLine();
+                                timestr1 = ReadStrUntil(line1, delimiter, 2);
+                                timestr2 = ReadStrUntil(line2, delimiter, 2);
+                            }
+                            datestr1 = ReadStrUntil(line1, delimiter, 1);
+                            datestr2 = ReadStrUntil(line2, delimiter, 1);
+                            nPoints = (int)((endDateTime - startDateTime).Ticks / (ParseDate(datestr2) - ParseDate(datestr1) + ParseTime(timestr2) - ParseTime(timestr1)).Ticks / interval + 1);
+                        }
+                        else // There's no date column. The date is included in the Time column
+                        {
+
+                            timestr1 = ReadStrUntil(line1, delimiter, 1);
+                            timestr2 = ReadStrUntil(line2, delimiter, 1);
+                            if (timestr1 == timestr2) // In some files the first line is the same as the second line. 
+                            {
+                                line1 = line2;
+                                line2 = sr.ReadLine();
+                                timestr1 = ReadStrUntil(line1, delimiter, 1);
+                                timestr2 = ReadStrUntil(line2, delimiter, 1);
+                            }
+                            nPoints = (int)((endDateTime - startDateTime).Ticks / (ParseDateTime(timestr2) - ParseDateTime(timestr1)).Ticks / interval + 1);
+                        }
+                        // Create the array for the data
+                        for (int i = 0; i < tagList.Length; i++)
+                            data.Add(new float[nPoints]);
+                    }
+                }
             }
 
 
             return collectionToPlot;
         }
 
-        private static List<float[]> readCSV(DateTime startDateTime, DateTime endDateTime, string[] tagList, string fileName)
-        {
-            // This is a List that contains the data to be returend
-            List<float[]> data = new List<float[]>();
-            // A string that represents a line from the csv file. line1 and line2 are the first two lines.
-            // Reading the first two lines allows the method to determine the time interval between the two lines, which is used to size the arrays
-            string line, titleLine, line1, line2, timestr1, timestr2;
-            string[] splitTitleLine;
-            // Array of integers corresponding to the position of the tags in a line
-            int[] indexOfTags = new int[tagList.Length];
-            int[] sortedIndex = new int[tagList.Length];
-            // Add this offset to compensate for the date and time columns
-            // If the file does not contain a date column, offset = 1; If the file contains a date column, offset = 2
-            // nColumn is the number of columns in a csv file
-            int offset, nColumn;
 
-            // In this method, we will use long integers (Int64) to represent the date and time. It encodes the time as yyyyMMddHHmmss
-            long startTimeInt = Int64.Parse(startDateTime.ToString("yyyyMMddHHmmss"));
-            long endTimeInt = Int64.Parse(endDateTime.ToString("yyyyMMddHHmmss"));
-            using (StreamReader sr = new StreamReader(fileName))
-            {
-                // read the first line that contains the tag names
-                titleLine = sr.ReadLine();
-                splitTitleLine = titleLine.Split(new char[] { ',' });
-                // number of columns in the csv file
-                nColumn = splitTitleLine.Length;
-                // if the file contain a "date" or ";date" column, the method for translating the datetime is different
-                if (splitTitleLine[0].ToLower() == "date" || splitTitleLine[0].ToLower() == ";date")
-                    offset = 2;
-                else
-                    offset = 1;
-
-                // Find where the tags are located
-                for (int i=0; i<tagList.Length; i++)
-                {
-                    indexOfTags[i] = Array.FindIndex(splitTitleLine, (string s) => s == tagList[i]);
-                    if (indexOfTags[i] == -1)
-                    {
-                        MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + fileName + "\".");
-                    }
-                }
-                // Read the first two lines, and figure out the time interval between two lines in the csv file
-                line1 = sr.ReadLine();
-                line2 = sr.ReadLine();
-                if (offset == 1)
-                {
-                    // There's no date column. The date is included in the Time column
-
-                }
-
-            }
-        }
-
+        // read the character in "str" one by one until the "nth" occurance of char "end"
+        // write anything between the (n-1)th and nth of "end" to out result
         private static string ReadStrUntil(string str, char end, int nth = 1)
         {
-            // read the character in "str" one by one until the "nth" occurance of char "end"
-            // write anything between the (n-1)th and nth of "end" to out result
+            
             int endCount = 0; // the number of "end" seen
             int writeCount = 0;
             char[] cResult = new char[16];
@@ -959,9 +1001,13 @@ namespace DataExtractor
             }
         }
 
-        // A FileRecord include the file pathname, start time, and whether the file is needed.
+        // Parse the datetime string into DateTime struct. 
+        // Assume that in the string date and time is separated by a space
+        private static DateTime ParseDateTime(string datetime) =>
+            ParseDate(ReadStrUntil(datetime, ' ')) + ParseTime(ReadStrUntil(datetime, ' ', 2));
+
+        // A FileRecord include the file pathname, file type, and start time.
         // The constructor will determine the start time based on the file name.
-        // 
         private struct FileRecord: IComparable<FileRecord>
         {
             public string fileName, fileType;
@@ -997,12 +1043,28 @@ namespace DataExtractor
                 }
             }
 
-            public int CompareTo(FileRecord other)
-            {
-                return startTime.CompareTo(other.startTime);
-            }
+            public int CompareTo(FileRecord other) =>
+                startTime.CompareTo(other.startTime);
         }
 
-        
+        // This struct is used to preserve the original position information in an array after it is sorted
+        // Use this struct to form an array, and label the Position from 0 to n
+        // If the array is sorted by Index, the Position indicates the original position of the Index in the array before sorting.
+        private struct IndexWithPosition: IComparable<IndexWithPosition>
+        {
+            public int Index;
+            public int Position;
+
+            public IndexWithPosition(int index, int position)
+            {
+                Index = index;
+                Position = position;
+            }
+
+            public int CompareTo(IndexWithPosition other) =>
+                Index.CompareTo(other.Index);
+        }
+
+
     }
 }
