@@ -1,4 +1,5 @@
 ﻿using LiveCharts;
+using LiveCharts.Wpf;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,7 +16,7 @@ namespace DataExtractor
     {
         // Constructor
         // 
-        public ExtractedData(DateTime startDateTime, DateTime endDateTime, string[] tags, string[] dataFiles)
+        public ExtractedData(DateTime startDateTime, DateTime endDateTime, string[] tags, string[] dataFiles, int interval = 1)
         {
 
             // Construct an array of the file records
@@ -64,7 +65,7 @@ namespace DataExtractor
                 }
             }
             // Get data from the listed files
-
+            SeriesCollection pointsToPlot = ExtractData(startDateTime, endDateTime, tags, fileRecords, interval);
         }
 
         // Try to parse the date input from user into a DateTime struct
@@ -78,7 +79,7 @@ namespace DataExtractor
             dateStr = Regex.Replace(dateStr, @"([a-zA-Z]+)", @" $1 ", RegexOptions.IgnoreCase);
             //Split the dateStr by white spaces and underline _. Split returns an array. Remove all empty string and get an IList object
             // Except is a method of IEnumerable
-            IList<string> dateList = Regex.Split(dateStr, @"[\W_]+").Except(new string[] { "" }).ToList();
+            IList<string> dateList = Regex.Split(dateStr, @"[\W_]+").Where(s => s != "").ToList();
 
             int year, month, day;
             switch (dateList.Count())
@@ -341,7 +342,7 @@ namespace DataExtractor
             // remove all letters
             timeStr = Regex.Replace(timeStr, @"[a-zA-Z]+", "", RegexOptions.IgnoreCase);
             // split the str by symbols
-            IList<string> timeList = Regex.Split(timeStr, @"[\W_]+").Except(new string[] { "" }).ToList();
+            IList<string> timeList = Regex.Split(timeStr, @"[\W_]+").Where(s => s != "").ToList();
 
             switch (timeList.Count)
             {
@@ -407,7 +408,7 @@ namespace DataExtractor
                 hour += 12;
             else if (isAM && hour == 12)// if it's 12am, set hour to 0
                 hour = 0;
-            if (hour == 24) // if hour is 24, set the time to last second of the day 23:59:59
+            else if (hour == 24) // if hour is 24, set the time to last second of the day 23:59:59
             {
                 hour = 23;
                 minute = second = 59;
@@ -433,7 +434,7 @@ namespace DataExtractor
         private static SeriesCollection ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
         {
 
-            SeriesCollection collectionToPlot;
+            SeriesCollection collectionToPlot = new SeriesCollection();
             // This is a List that contains the data to be returend
             List<float[]> data = new List<float[]>(tagList.Length);
             // use a temporary array to store the data obtained from each line
@@ -460,6 +461,10 @@ namespace DataExtractor
             int nPoints = 0;
             // pointCount is the points extracted. If pointCount get to the length of the array, make the array larger
             int pointCount = 0;
+            // skipCounter is used to skip data points that is not wanted. skipping behavior is controlled by parameter interval
+            int skipCounter = interval;
+            // i is the counter used in for loops
+            int i;
 
             // In this method, we will use long integers (Int64) to represent the date and time. It encodes the time as yyyyMMddHHmmss
             long startTimeInt = Int64.Parse(startDateTime.ToString("yyyyMMddHHmmss"));
@@ -467,7 +472,7 @@ namespace DataExtractor
 
             foreach (FileRecord record in fileRecords)
             {
-                using (StreamReader sr = new StreamReader(record.fileName))
+                using (StreamReader sr = new StreamReader(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                 {
                     switch (record.fileType.ToLower())
                     {
@@ -489,7 +494,7 @@ namespace DataExtractor
 
 
                     // Find where the tags are located
-                    for (int i = 0; i < tagList.Length; i++)
+                    for (i = 0; i < tagList.Length; i++)
                     {
                         int index = Array.FindIndex(splitTitleLine, (string s) => s == tagList[i]);
                         if (index == -1) // The tag is not found
@@ -503,9 +508,9 @@ namespace DataExtractor
                     // Sort the List indexOfTags based on the index. Thus, we can get the value of the tags one by one as we go through one line of the data file
                     indexOfTags.Sort();
 
-                    
 
-                    // Read the first two lines, and figure out the time interval between two lines in the csv file
+
+                    // Read the first two lines, and figure out the time interval between two lines in the data file
                     line1 = sr.ReadLine();
                     line2 = sr.ReadLine();
                     // if the file contain a "date" or ";date" column, the method for translating the datetime is different
@@ -514,9 +519,20 @@ namespace DataExtractor
                     else // There's no date column. The date is included in the Time column
                         dateTimeFromStr = Str2DateTime_2;
                     DateTime dateTime1 = dateTimeFromStr(line1, delimiter);
+                    if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                        break;
                     DateTime dateTime2 = dateTimeFromStr(line2, delimiter);
-                    // In some data files, the first line has the same time stamp with the second. Throw it away and get the third line
-                    if(dateTime1 == dateTime2)
+                    // In some data files, the first line has the same time stamp with the second. 
+                    /* Example:
+                     * <data file>
+                     * Date, Time, tags...
+                     * 09/01/2018, 0:00:00,, data...   <- Discard this line
+                     * 09/01/2018, 0:00:00,, data...   <- Make this line1
+                     * 09/01/2018, 0:00:01,, data...   <- Make this line2
+                     * ...
+                     * </data file>
+                     */
+                    if (dateTime1 == dateTime2)
                     {
                         line1 = line2;
                         line2 = sr.ReadLine();
@@ -532,7 +548,7 @@ namespace DataExtractor
                         // if for any reason nPoints is not positive, there's something wrong and the program will abort here
                         if (nPoints <= 0)
                             throw new ArgumentException("Number of points is not positive.");
-                        for (int i = 0; i < tagList.Length; i++)
+                        for (i = 0; i < tagList.Length; i++)
                         {
                             data.Add(new float[nPoints]);
                             // //Considering that it should only take a few MBs to store all the data, there's no need to save on the array
@@ -550,14 +566,138 @@ namespace DataExtractor
                             //}
                         }
                         dateTimes = new DateTime[nPoints];
+                        if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
+                        {
+                            dateTimes[pointCount] = dateTime1;
+                            ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
+                            for (i = 0; i < indexOfTags.Count; i++)
+                                data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                            skipCounter = 1;
+                            pointCount++;
+                        }
                     }
-                    // start processing the data file. will start from the first two lines
-                    dateTimes[pointCount] = dateTime1;
+                    // If it's not the first file. 
+                    // Need to check if the time stamp of line 1 of this file is the same as that of the previous file. 
+                    // In a lot of data files, the last time stamp of the previouis file is the same as the first two 
+                    // time stamps of the second file.
+                    /* Example:
+                     * <First file>
+                     * ...
+                     * 09/01/2018, 0:00:00, data....   <- Written in output data previously. Need to be overriden
+                     * </First file>
+                     * 
+                     * <Second file>
+                     * Date, Time, tags...
+                     * 09/01/2018, 0:00:00,, data...   <- This line would be discarded in previous steps
+                     * 09/01/2018, 0:00:00,, data...   <- Only keep this line
+                     * 09/01/2018, 0:00:01,, data...
+                     * ...
+                     * </Second file>
+                     */
+                    // In this case, will only keep the last value with same time stamp
+                    else if (dateTime1 >= startDateTime)
+                    {
+                        // Time stamp is after startDateTime. Take the point
+                        if (pointCount > 0 && dateTime1 == dateTimes[pointCount - 1])
+                        {
+                            // New time stamp is same as previous
+                            // override the previous data by this one
+                            pointCount--;
+                            ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
+                            for (i = 0; i < indexOfTags.Count; i++)
+                                data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                            pointCount++;
+                            skipCounter = 1;
+                        }
+                        else// New time stamp is different from previous
+                        {
+                            // Perform normal checks
+                            if (skipCounter == interval) // will take the point. Otherwise, will skip
+                            {
+                                if (pointCount == nPoints) // if for some reason the array is not large enough
+                                {
+                                    // double the size of the array
+                                    nPoints *= 2;
+                                    for (i = 0; i < indexOfTags.Count; i++)
+                                    {
+                                        float[] temp = new float[nPoints];
+                                        data[i].CopyTo(temp, pointCount);
+                                        data[i] = temp;
+                                    }
+                                }
+                                dateTimes[pointCount] = dateTime1;
+                                ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
+                                for (i = 0; i < indexOfTags.Count; i++)
+                                    data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                pointCount++;
+                                skipCounter = 1;
+                            }
+                            else
+                                skipCounter++;
+                        }
+                    }
+                    line = line2;
+                    // start processing the data file. 
+                    do
+                    {
+                        dateTime1 = dateTimeFromStr(line, delimiter);
+                        if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                            break;
+                        else if (dateTime1 >= startDateTime)
+                        {
+                            if (skipCounter == interval) // will take the point. Otherwise, will skip
+                            {
+                                if (pointCount == nPoints) // if for some reason the array is not large enough
+                                {
+                                    // double the size of the array
+                                    nPoints *= 2;
+                                    for (i = 0; i < indexOfTags.Count; i++)
+                                    {
+                                        float[] temp = new float[nPoints];
+                                        data[i].CopyTo(temp, pointCount);
+                                        data[i] = temp;
+                                    }
+                                }
+                                dateTimes[pointCount] = dateTime1;
+                                ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
+                                for (i = 0; i < indexOfTags.Count; i++)
+                                    data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                pointCount++;
+                                skipCounter = 1;
+                            }
+                            else
+                                skipCounter++;
+                        }
 
+                    } while ((line = sr.ReadLine()) != null);
+                    if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                        break;
+                    // clear the indexOfTags so that it does not affect the next file
+                    indexOfTags.Clear();
                 }
             }
-
-
+            // if for some reason the size of the array is larger than actual number of points
+            if (pointCount < nPoints) 
+            {
+                // double the size of the array
+                nPoints = pointCount;
+                for (i = 0; i < indexOfTags.Count; i++)
+                {
+                    float[] temp = new float[nPoints];
+                    data[i].CopyTo(temp, pointCount);
+                    data[i] = temp;
+                }
+            }
+            // Copy
+            for (i = 0; i<tagList.Length; i++)
+            {
+                var series = new LineSeries()
+                {
+                    Title = tagList[i],
+                    Values = new ChartValues<float>(data[i])
+                };
+                collectionToPlot.Add(series);
+            }
             return collectionToPlot;
         }
 
@@ -593,6 +733,7 @@ namespace DataExtractor
             do
             {
                 c = str[i];
+                i++;
                 if (c == delimiter) // see a delimiter char
                 {
                     break;
@@ -642,6 +783,7 @@ namespace DataExtractor
             do
             {
                 c = str[i];
+                i++;
                 if (c == delimiter) // see a delimiter char
                 {
                     break;
@@ -660,26 +802,33 @@ namespace DataExtractor
 
         // read the character in "str" one by one until the "nth" occurance of char "end"
         // write anything between the (n-1)th and nth of "end" to out result
-        private static string ReadStrUntil(string str, char end, int nth = 1)
+        // nth is zero indexing, i.e. count from 0. 
+        private static string ReadStrUntil(string str, char end, int nth = 0)
         {
 
             int endCount = 0; // the number of "end" seen
             int writeCount = 0;
             char[] cResult = new char[16];
-            foreach (char c in str)
+            char c;
+            int readCount = 0;
+            do
             {
+                c = str[readCount];
+                readCount++;
                 if (c == end) // see a end char
+                {
                     endCount++;
-                else if (endCount == nth - 1)
+                    if (endCount == nth + 1)
+                        break;
+                }
+                else if (endCount == nth)
                 {
                     cResult[writeCount] = c;
                     writeCount++;
                     if (writeCount == cResult.Length)
                         Array.Resize(ref cResult, cResult.Length * 2);
                 }
-                if (endCount == nth)
-                    break;
-            }
+            } while (readCount < str.Length);
             return new string(cResult, 0, writeCount);
         }
 
@@ -687,6 +836,7 @@ namespace DataExtractor
         {
             // read the character in "str" one by one until the "nth" occurance of char "end"
             // write anything between the (n-1)th and nth of "end" to out result
+            // Note: nth is zero indexing, i.e. count from 0
             // This overload method do the same for every number in List nth
             // The caller should guarentee that: 
             // 1. The List nth is sorted in ascending order
@@ -702,14 +852,14 @@ namespace DataExtractor
             {
                 if (c == end) // see a end char
                     endCount++;
-                else if (endCount == nth[itemCount] - 1) // not a end char, and it's between the (n-1)th and nth end char
+                else if (endCount == nth[itemCount]) // not a end char, and it's between the (n-1)th and nth end char
                 {
                     cResult[writeCount] = c;
                     writeCount++;
                     if (writeCount == cResult.Length)
                         Array.Resize(ref cResult, cResult.Length * 2);
                 }
-                if (endCount == nth[itemCount]) // found the nth end char. add the result to the List of string
+                if (endCount == nth[itemCount]+1) // found the nth end char. add the result to the List of string
                 {
                     result.Add(new string(cResult, 0, writeCount));
                     // then start over for the next item in nth
@@ -722,7 +872,7 @@ namespace DataExtractor
             return result;
         }
 
-        private static void ReadStrUntil(string str, char end, IList<int> nth, ref float[] result)
+        private static void ReadStrUntil(string str, char end, IList<IndexWithPosition> nth, ref float[] result)
         {
             // read the character in "str" one by one until the "nth" occurance of char "end"
             // Convert anything between the (n-1)th and nth of "end" to float and write to "result"
@@ -733,36 +883,63 @@ namespace DataExtractor
             // 3. The array in result should be long enough to take all fileds specified by "nth"
             int endCount = 0; // the number of "end" seen
             int itemCount = 0; // number of items completed in the List nth
-            int writeCount = 0;
+            int writeCount = 0; // number of chars written to cResult
+            int readCount = 0; // number of chars read in str
             char[] cResult = new char[16];
-
-            foreach (char c in str)
+            char c;
+            // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+            // Stop reading, and write NaN to return array
+            if (nth[itemCount].Index == Int32.MaxValue)
             {
+                do
+                {
+                    result[itemCount] = Single.NaN;
+                    itemCount++;
+                } while (itemCount < nth.Count);
+            }
+            do
+            {
+                c = str[readCount];
+                readCount++;
                 if (c == end) // see a end char
+                {
                     endCount++;
-                else if (endCount == nth[itemCount] - 1) // not a end char, and it's between the (n-1)th and nth end char
+                    if (endCount == nth[itemCount].Index + 1) // found the nth end char. convert the result to string then float, and add to the array
+                    {
+                        result[itemCount] = Single.Parse(new string(cResult, 0, writeCount));
+                        // then start over for the next item in nth
+                        writeCount = 0;
+                        itemCount++;
+                        if (itemCount == nth.Count)
+                            break;
+                        // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+                        // Stop reading, and write NaN to return array
+                        if (nth[itemCount].Index == Int32.MaxValue)
+                        {
+                            do
+                            {
+                                result[itemCount] = Single.NaN;
+                                itemCount++;
+                            } while (itemCount < nth.Count);
+                            break;
+                        }
+                    }
+
+                }
+                else if (endCount == nth[itemCount].Index) // not a end char, and it's between the (n-1)th and nth end char
                 {
                     cResult[writeCount] = c;
                     writeCount++;
                     if (writeCount == cResult.Length)
                         Array.Resize(ref cResult, cResult.Length * 2);
                 }
-                if (endCount == nth[itemCount]) // found the nth end char. convert the result to string then float, and add to the array
-                {
-                    result[itemCount] = Single.Parse(new string(cResult, 0, writeCount));
-                    // then start over for the next item in nth
-                    writeCount = 0;
-                    itemCount++;
-                }
-                if (itemCount == nth.Count)
-                    break;
-            }
+            } while (readCount < str.Length);
         }
 
         // Parse the datetime string into DateTime struct. 
         // Assume that in the string date and time is separated by a space
         private static DateTime ParseDateTime(string datetime) =>
-            ParseDate(ReadStrUntil(datetime, ' ')) + ParseTime(ReadStrUntil(datetime, ' ', 2));
+            ParseDate(ReadStrUntil(datetime, ' ')) + ParseTime(ReadStrUntil(datetime, ' ', 1));
 
         // A FileRecord include the file pathname, file type, and start time.
         // The constructor will determine the start time based on the file name.
