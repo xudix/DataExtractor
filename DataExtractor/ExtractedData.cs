@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 
 namespace DataExtractor
 {
@@ -15,7 +16,8 @@ namespace DataExtractor
     public class ExtractedData
     {
         // Constructor
-        // 
+        // The constructor will first construct a List of file recores, sort the records, figure out what files are needed,
+        // then call ExtractData to get data
         public ExtractedData(DateTime startDateTime, DateTime endDateTime, string[] tags, string[] dataFiles, int interval = 1)
         {
 
@@ -49,24 +51,29 @@ namespace DataExtractor
                 for (i = 0; i < fileRecords.Count - 1;)
                 {
                     // if next file start before start datetime
-                    // if next file start after start DateTime. This file is needed.
                     if (fileRecords[i + 1].startTime <= startDateTime)
                         fileRecords.RemoveAt(i);
                     else
                     {
-                        i++;
+                        // if next file start after start DateTime. This file is needed.
                         if (fileRecords[i + 1].startTime > endDateTime)
                         {
                             // next file start after endDateTime. Later files will not be needed
                             fileRecords.RemoveRange(i + 1, fileRecords.Count - i - 1);
                             break;
                         }
+                        i++;
                     }
                 }
             }
             // Get data from the listed files
-            SeriesCollection pointsToPlot = ExtractData(startDateTime, endDateTime, tags, fileRecords, interval);
+            ExtractData(startDateTime, endDateTime, tags, fileRecords, interval);
         }
+
+        // data in the class
+        public SeriesCollection PointsToPlot { get; set; }
+        public DateTime[] DateTimes { get; set; }
+        public string[] DateTimeStrs { get; set; }
 
         // Try to parse the date input from user into a DateTime struct
         public static DateTime ParseDate(string dateStr = "")
@@ -431,25 +438,23 @@ namespace DataExtractor
 
         // Extract data from all files in fileRecords according to the tagList between startDateTime and endDateTime
         // All files in the fileRecords will be opened
-        private static SeriesCollection ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
+        private void ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
         {
-
-            SeriesCollection collectionToPlot = new SeriesCollection();
+            DateTime extractionStart = DateTime.Now;
+            PointsToPlot = new SeriesCollection();
             // This is a List that contains the data to be returend
             List<float[]> data = new List<float[]>(tagList.Length);
             // use a temporary array to store the data obtained from each line
             float[] dataOfOnePoint = new float[tagList.Length];
-            // An array of DateTime objects that contains the time stamps of the data points
-            DateTime[] dateTimes = new DateTime[2];
+            
             // A string that represents a line from the csv file. line1 and line2 are the first two lines.
             // Reading the first two lines allows the method to determine the time interval between the two lines, which is used to size the arrays
-            string line, titleLine, line1, line2, timestr1, timestr2, datestr1, datestr2;
+            string line, titleLine, line1, line2;
             string[] splitTitleLine;
             // delimiter used by the file
             char delimiter;
             // Array of integers corresponding to the position of the tags in a line
             List<IndexWithPosition> indexOfTags = new List<IndexWithPosition>(tagList.Length);
-            int[] indexArray;
 
             // A delegate that specifies how to retrive datetime from a line.
             // if the file contain a "date" or ";date" column, the method for translating the datetime is different
@@ -492,7 +497,6 @@ namespace DataExtractor
                     // number of columns in the csv file
                     nColumn = splitTitleLine.Length;
 
-
                     // Find where the tags are located
                     for (i = 0; i < tagList.Length; i++)
                     {
@@ -507,8 +511,6 @@ namespace DataExtractor
                     }
                     // Sort the List indexOfTags based on the index. Thus, we can get the value of the tags one by one as we go through one line of the data file
                     indexOfTags.Sort();
-
-
 
                     // Read the first two lines, and figure out the time interval between two lines in the data file
                     line1 = sr.ReadLine();
@@ -565,10 +567,12 @@ namespace DataExtractor
                             //    }
                             //}
                         }
-                        dateTimes = new DateTime[nPoints];
+                        DateTimes = new DateTime[nPoints];
+                        DateTimeStrs = new string[nPoints];
                         if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
                         {
-                            dateTimes[pointCount] = dateTime1;
+                            DateTimes[pointCount] = dateTime1;
+                            DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                             ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                             for (i = 0; i < indexOfTags.Count; i++)
                                 data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
@@ -598,7 +602,7 @@ namespace DataExtractor
                     else if (dateTime1 >= startDateTime)
                     {
                         // Time stamp is after startDateTime. Take the point
-                        if (pointCount > 0 && dateTime1 == dateTimes[pointCount - 1])
+                        if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
                         {
                             // New time stamp is same as previous
                             // override the previous data by this one
@@ -625,7 +629,8 @@ namespace DataExtractor
                                         data[i] = temp;
                                     }
                                 }
-                                dateTimes[pointCount] = dateTime1;
+                                DateTimes[pointCount] = dateTime1;
+                                DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                 ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
                                     data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
@@ -658,7 +663,8 @@ namespace DataExtractor
                                         data[i] = temp;
                                     }
                                 }
-                                dateTimes[pointCount] = dateTime1;
+                                DateTimes[pointCount] = dateTime1;
+                                DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                 ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
                                     data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
@@ -681,24 +687,33 @@ namespace DataExtractor
             {
                 // double the size of the array
                 nPoints = pointCount;
-                for (i = 0; i < indexOfTags.Count; i++)
+                for (i = 0; i < tagList.Length  ; i++)
                 {
                     float[] temp = new float[nPoints];
-                    data[i].CopyTo(temp, pointCount);
+                    Array.Copy(data[i], temp, pointCount);
                     data[i] = temp;
                 }
+                DateTime[] tempDateTime = new DateTime[nPoints];
+                Array.Copy(DateTimes, tempDateTime, pointCount);
+                DateTimes = tempDateTime;
+                string[] tempDateTimeStr = new string[nPoints];
+                Array.Copy(DateTimeStrs, tempDateTimeStr, pointCount);
+                DateTimeStrs = tempDateTimeStr;
             }
-            // Copy
+            // Convert the arrays into LineSeries
             for (i = 0; i<tagList.Length; i++)
             {
                 var series = new LineSeries()
                 {
                     Title = tagList[i],
-                    Values = new ChartValues<float>(data[i])
+                    Values = new ChartValues<float>(data[i]),
+                    LineSmoothness = 0,
+                    PointGeometry = null,
+                    Fill = Brushes.Transparent,
                 };
-                collectionToPlot.Add(series);
+                PointsToPlot.Add(series);
             }
-            return collectionToPlot;
+            MessageBox.Show("Data Extraction Completed in " + (DateTime.Now-extractionStart).ToString());
         }
 
         // Take a line from the data file and read the find the datetime of the the string

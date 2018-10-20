@@ -117,7 +117,8 @@ namespace DataExtractor
 
         private void PlotButton_Click(object sender, RoutedEventArgs e)
         {
-            ExtractedData extractedData = new ExtractedData(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1);
+            PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1);
+            plotWindow.Show();
         }
 
         // Selected Tags. It's an array of string.
