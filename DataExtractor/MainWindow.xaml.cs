@@ -117,7 +117,7 @@ namespace DataExtractor
 
         private void PlotButton_Click(object sender, RoutedEventArgs e)
         {
-            PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1);
+            PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1,300);
             plotWindow.Show();
         }
 

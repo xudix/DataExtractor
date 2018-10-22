@@ -71,9 +71,11 @@ namespace DataExtractor
         }
 
         // data in the class
-        public SeriesCollection PointsToPlot { get; set; }
+        //public SeriesCollection PointsToPlot { get; set; }
+        public List<float[]> RawData;
         public DateTime[] DateTimes { get; set; }
-        public string[] DateTimeStrs { get; set; }
+        //public string[] DateTimeStrs { get; set; }
+        public int pointCount;
 
         // Try to parse the date input from user into a DateTime struct
         public static DateTime ParseDate(string dateStr = "")
@@ -440,10 +442,10 @@ namespace DataExtractor
         // All files in the fileRecords will be opened
         private void ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
         {
-            DateTime extractionStart = DateTime.Now;
-            PointsToPlot = new SeriesCollection();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            //PointsToPlot = new SeriesCollection();
             // This is a List that contains the data to be returend
-            List<float[]> data = new List<float[]>(tagList.Length);
+            RawData = new List<float[]>(tagList.Length);
             // use a temporary array to store the data obtained from each line
             float[] dataOfOnePoint = new float[tagList.Length];
             
@@ -465,7 +467,7 @@ namespace DataExtractor
             // nPoints is the estimated numbe of data points to be extracted, based on the time interval between points
             int nPoints = 0;
             // pointCount is the points extracted. If pointCount get to the length of the array, make the array larger
-            int pointCount = 0;
+            pointCount = 0;
             // skipCounter is used to skip data points that is not wanted. skipping behavior is controlled by parameter interval
             int skipCounter = interval;
             // i is the counter used in for loops
@@ -544,7 +546,7 @@ namespace DataExtractor
                     // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
                     // Try to estimate the number of points to be extracted. Initialize array accordingly
                     // Then create the array for the data
-                    if (data.Count == 0)
+                    if (RawData.Count == 0)
                     {
                         nPoints = (int)((endDateTime - startDateTime).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
                         // if for any reason nPoints is not positive, there's something wrong and the program will abort here
@@ -552,7 +554,7 @@ namespace DataExtractor
                             throw new ArgumentException("Number of points is not positive.");
                         for (i = 0; i < tagList.Length; i++)
                         {
-                            data.Add(new float[nPoints]);
+                            RawData.Add(new float[nPoints]);
                             // //Considering that it should only take a few MBs to store all the data, there's no need to save on the array
                             // //Go over the whole list indexOfTags, find the corresponding record based on the Position, then determine if the tag is found in the file.
                             //foreach(IndexWithPosition tagRecord in indexOfTags)
@@ -568,14 +570,14 @@ namespace DataExtractor
                             //}
                         }
                         DateTimes = new DateTime[nPoints];
-                        DateTimeStrs = new string[nPoints];
+                        //DateTimeStrs = new string[nPoints];
                         if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
                         {
                             DateTimes[pointCount] = dateTime1;
-                            DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                            //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                             ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                             for (i = 0; i < indexOfTags.Count; i++)
-                                data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                             skipCounter = 1;
                             pointCount++;
                         }
@@ -609,7 +611,7 @@ namespace DataExtractor
                             pointCount--;
                             ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                             for (i = 0; i < indexOfTags.Count; i++)
-                                data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                             pointCount++;
                             skipCounter = 1;
                         }
@@ -625,15 +627,15 @@ namespace DataExtractor
                                     for (i = 0; i < indexOfTags.Count; i++)
                                     {
                                         float[] temp = new float[nPoints];
-                                        data[i].CopyTo(temp, pointCount);
-                                        data[i] = temp;
+                                        RawData[i].CopyTo(temp, pointCount);
+                                        RawData[i] = temp;
                                     }
                                 }
                                 DateTimes[pointCount] = dateTime1;
-                                DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                 ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
-                                    data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                    RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                                 pointCount++;
                                 skipCounter = 1;
                             }
@@ -659,15 +661,15 @@ namespace DataExtractor
                                     for (i = 0; i < indexOfTags.Count; i++)
                                     {
                                         float[] temp = new float[nPoints];
-                                        data[i].CopyTo(temp, pointCount);
-                                        data[i] = temp;
+                                        RawData[i].CopyTo(temp, pointCount);
+                                        RawData[i] = temp;
                                     }
                                 }
                                 DateTimes[pointCount] = dateTime1;
-                                DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                 ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
-                                    data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                    RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                                 pointCount++;
                                 skipCounter = 1;
                             }
@@ -690,30 +692,31 @@ namespace DataExtractor
                 for (i = 0; i < tagList.Length  ; i++)
                 {
                     float[] temp = new float[nPoints];
-                    Array.Copy(data[i], temp, pointCount);
-                    data[i] = temp;
+                    Array.Copy(RawData[i], temp, pointCount);
+                    RawData[i] = temp;
                 }
                 DateTime[] tempDateTime = new DateTime[nPoints];
                 Array.Copy(DateTimes, tempDateTime, pointCount);
                 DateTimes = tempDateTime;
-                string[] tempDateTimeStr = new string[nPoints];
-                Array.Copy(DateTimeStrs, tempDateTimeStr, pointCount);
-                DateTimeStrs = tempDateTimeStr;
+                //string[] tempDateTimeStr = new string[nPoints];
+                //Array.Copy(DateTimeStrs, tempDateTimeStr, pointCount);
+                //DateTimeStrs = tempDateTimeStr;
             }
             // Convert the arrays into LineSeries
-            for (i = 0; i<tagList.Length; i++)
-            {
-                var series = new LineSeries()
-                {
-                    Title = tagList[i],
-                    Values = new ChartValues<float>(data[i]),
-                    LineSmoothness = 0,
-                    PointGeometry = null,
-                    Fill = Brushes.Transparent,
-                };
-                PointsToPlot.Add(series);
-            }
-            MessageBox.Show("Data Extraction Completed in " + (DateTime.Now-extractionStart).ToString());
+            //for (i = 0; i<tagList.Length; i++)
+            //{
+            //    var series = new LineSeries()
+            //    {
+            //        Title = tagList[i],
+            //        Values = new ChartValues<float>(RawData[i]),
+            //        LineSmoothness = 0,
+            //        PointGeometry = null,
+            //        Fill = Brushes.Transparent,
+            //    };
+            //    PointsToPlot.Add(series);
+            //}
+            watch.Stop();
+            Console.WriteLine("Data Extraction Completed in " + watch.ElapsedMilliseconds+"ms");
         }
 
         // Take a line from the data file and read the find the datetime of the the string

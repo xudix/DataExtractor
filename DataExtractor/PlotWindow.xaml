@@ -18,12 +18,15 @@
             <ColumnDefinition/>
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <lvc:CartesianChart Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right" >
+        <lvc:CartesianChart Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right" 
+                            Pan="Xy" 
+                            DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
+                            MouseDoubleClick="CartesianChart_MouseDoubleClick">
             <lvc:CartesianChart.AxisY>
-                <lvc:Axis></lvc:Axis>
+                <lvc:Axis Name="YAxis"></lvc:Axis>
             </lvc:CartesianChart.AxisY>
             <lvc:CartesianChart.AxisX>
-                <lvc:Axis Title="Time" Labels="{Binding DateTimeStrs}"></lvc:Axis>
+                <lvc:Axis Name="XAxis" Title="Time" Labels="{Binding DateTimeStrs}" ></lvc:Axis>
             </lvc:CartesianChart.AxisX>
         </lvc:CartesianChart>
 
