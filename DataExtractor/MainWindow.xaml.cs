@@ -27,9 +27,12 @@ namespace DataExtractor
     /// </summary>
 
         // Possible improvements:
-        // Data validation in date and time input
+        // 
         // date selector for start and end dates
         // Rewrite the ControlTemplate of date input to include a interactive date picker
+        // Drag-and-drop file import
+        // Reading tags directly from data file
+
 
     public partial class MainWindow : Window, INotifyPropertyChanged
     {

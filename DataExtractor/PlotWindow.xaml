@@ -7,6 +7,8 @@
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
         Title="Plot" Height="450" Width="800">
+    <Window.Resources>
+    </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -17,18 +19,99 @@
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition/>
             <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <lvc:CartesianChart Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right" 
+        <TextBlock Text="{Binding ElementName=plotTitleInput, Path=Text}" HorizontalAlignment="Center" Grid.Column="1"></TextBlock>
+        <lvc:CartesianChart Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
                             Pan="Xy" 
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
                             MouseDoubleClick="CartesianChart_MouseDoubleClick">
             <lvc:CartesianChart.AxisY>
-                <lvc:Axis Name="YAxis"></lvc:Axis>
+                <lvc:Axis Name="YAxis" Title="{Binding ElementName=yAxisTitleInput, Path=Text}"></lvc:Axis>
             </lvc:CartesianChart.AxisY>
             <lvc:CartesianChart.AxisX>
-                <lvc:Axis Name="XAxis" Title="Time" Labels="{Binding DateTimeStrs}" ></lvc:Axis>
+                <lvc:Axis Name="XAxis" Title="{Binding ElementName=xAxisTitleInput, Path=Text}" Labels="{Binding DateTimeStrs}" ></lvc:Axis>
             </lvc:CartesianChart.AxisX>
         </lvc:CartesianChart>
+
+        <ToggleButton Name="settingButton" 
+                Grid.Column="2" IsChecked="True">
+            <ToggleButton.Style>
+                <Style TargetType="ToggleButton">
+                    <Setter Property="Content" Value="Settings &gt;&gt; "/>
+                    <Style.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Content" Value="Settings &lt;&lt; "/> 
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </ToggleButton.Style>
+        </ToggleButton>
+
+        <StackPanel Grid.Column="3" Grid.RowSpan="3" Margin="5,0">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="IsEnabled" Value="True"/>
+                    <Setter Property="Width" Value="Auto"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ElementName=settingButton, Path=IsChecked}" Value="False">
+
+                            <Setter Property="Visibility" Value="Hidden"/>
+                            <Setter Property="IsEnabled" Value="False"/>
+                            <Setter Property="Width" Value="0"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+
+                <Label Grid.ColumnSpan="3" >Plot Title</Label>
+                <TextBox x:Name="plotTitleInput" Grid.Row="1" Grid.ColumnSpan="3" Margin="10,0,0,0" >New Plot</TextBox>
+                <Label Grid.Row="2" Grid.ColumnSpan="3">X Axis Title</Label>
+                <TextBox x:Name="xAxisTitleInput" Grid.Row="3" Grid.ColumnSpan="3" Margin="10,0,0,0" >Time</TextBox>
+                <Label Grid.Row="4" Grid.ColumnSpan="3">YAxis Title</Label>
+                <TextBox x:Name="yAxisTitleInput" Grid.Row="5" Grid.ColumnSpan="3" Margin="10,0,0,0" >Value</TextBox>
+                <Label Grid.Row="6" Grid.ColumnSpan="3">X Axis Range</Label>
+                <Label Grid.Row="7" Margin="10,0,0,0">From</Label>
+                <TextBox x:Name="xAxisMinnput" Grid.Row="7" Grid.Column="1" Width="80" Margin="0,2"></TextBox>
+                <Button x:Name="xAxisMinReset" Grid.Row="7" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <Label Grid.Row="8" Margin="10,0,0,0">To</Label>
+                <TextBox x:Name="xAxisMaxInput" Grid.Row="8" Grid.Column="1" Margin="0,2"></TextBox>
+                <Button x:Name="xAxisMaxReset" Grid.Row="8" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <Label Grid.Row="9" Grid.ColumnSpan="3">Y Axis Range</Label>
+                <Label Grid.Row="10" Margin="10,0,0,0">From</Label>
+                <TextBox x:Name="yAxisMinnput" Grid.Row="10" Grid.Column="1" Margin="0,2"></TextBox>
+                <Button x:Name="yAxisMinReset" Grid.Row="10" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <Label Grid.Row="11" Margin="10,0,0,0">To</Label>
+                <TextBox x:Name="yAxisMaxInput" Grid.Row="11" Grid.Column="1" Margin="0,2"></TextBox>
+                <Button x:Name="yAxisMaxReset" Grid.Row="11" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <Label Grid.Row="12">Resolution</Label>
+                <TextBox x:Name="resolutionInput" Grid.Row="12" Grid.Column="1" Margin="0,2"></TextBox>
+
+            </Grid>
+        </StackPanel>
 
     </Grid>
 </Window>

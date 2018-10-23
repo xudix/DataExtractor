@@ -152,5 +152,9 @@ namespace DataExtractor
             YAxis.MinValue = Double.NaN;
             YAxis.MaxValue = Double.NaN;
         }
+
+
     }
+
+
 }
