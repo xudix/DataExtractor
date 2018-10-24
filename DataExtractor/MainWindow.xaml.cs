@@ -120,8 +120,12 @@ namespace DataExtractor
 
         private void PlotButton_Click(object sender, RoutedEventArgs e)
         {
-            PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1,300);
-            plotWindow.Show();
+            if(SelectedTags != null && selectedFiles != null)
+            {
+                PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1,300);
+                plotWindow.Show();
+            }
+                
         }
 
         // Selected Tags. It's an array of string.
@@ -204,7 +208,7 @@ namespace DataExtractor
         // Contains end Date and Time from user input
         // When the end time input is modfied, it will be updated here as well
         //  The endDateInput textbox is bound to this object
-        private DateTime endDateTime = DateTime.Today;
+        private DateTime endDateTime = DateTime.Today+(new TimeSpan(23,59,59));
         public DateTime EndDateTime
         {
             get

@@ -20,7 +20,8 @@ namespace DataExtractor
         // then call ExtractData to get data
         public ExtractedData(DateTime startDateTime, DateTime endDateTime, string[] tags, string[] dataFiles, int interval = 1)
         {
-
+            Tags = new string[tags.Length];
+            tags.CopyTo(Tags, 0);
             // Construct an array of the file records
             List<FileRecord> fileRecords = new List<FileRecord>();
             int i;
@@ -67,14 +68,13 @@ namespace DataExtractor
                 }
             }
             // Get data from the listed files
-            ExtractData(startDateTime, endDateTime, tags, fileRecords, interval);
+            Extract(startDateTime, endDateTime, Tags, fileRecords, interval);
         }
 
         // data in the class
-        //public SeriesCollection PointsToPlot { get; set; }
-        public List<float[]> RawData;
+        public List<float[]> RawData { get; set; }
         public DateTime[] DateTimes { get; set; }
-        //public string[] DateTimeStrs { get; set; }
+        public string[] Tags { get; set; }
         public int pointCount;
 
         // Try to parse the date input from user into a DateTime struct
@@ -440,7 +440,7 @@ namespace DataExtractor
 
         // Extract data from all files in fileRecords according to the tagList between startDateTime and endDateTime
         // All files in the fileRecords will be opened
-        private void ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
+        private void Extract(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             //PointsToPlot = new SeriesCollection();
@@ -956,7 +956,7 @@ namespace DataExtractor
 
         // Parse the datetime string into DateTime struct. 
         // Assume that in the string date and time is separated by a space
-        private static DateTime ParseDateTime(string datetime) =>
+        public static DateTime ParseDateTime(string datetime) =>
             ParseDate(ReadStrUntil(datetime, ' ')) + ParseTime(ReadStrUntil(datetime, ' ', 1));
 
         // A FileRecord include the file pathname, file type, and start time.

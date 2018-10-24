@@ -62,8 +62,10 @@
         <TextBox x:Name="fileInput" Grid.ColumnSpan="2" Grid.Column="3" Grid.Row="3" Margin="5,0,0,0"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AcceptsReturn="True"
                  Text="{Binding SelectedFiles, Converter={StaticResource StrArrConverter}, ConverterParameter=file, Mode=TwoWay}"></TextBox>
+        <!-->
         <TextBlock x:Name="testOutput1" Grid.Row="4" Text="{Binding StartDateTime, Mode=OneWay}"/>
         <TextBlock x:Name="testOutput2" Grid.Row="4" Grid.Column ="3" Text="{Binding EndDateTime, Mode=OneWay}"/>
+        <-->
         <Button Name="plotButton" Grid.Column="5" Grid.Row="4" Margin="0,4,0,0" Click="PlotButton_Click">Plot</Button>
 
     </Grid>
