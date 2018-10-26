@@ -1018,6 +1018,72 @@ namespace DataExtractor
                 Index.CompareTo(other.Index);
         }
 
+        // Write the extracted data to a file that the user specified
+        public void WriteToFile(DateTime startDateTime, DateTime endDateTime, Window owner, string fileType, string defaultPath = "")
+        {
+            char delimiter;
+            int i,j;
+            // filterText is used 
+            string filterText;
+            switch (fileType.ToLower())
+            {
+                case "csv":
+                    delimiter = ',';
+                    filterText = "CSV File (.csv) | *.csv";
+                    break;
+                case "txt":
+                    delimiter = '\t';
+                    filterText = "Text File (.txt)|*.txt";
+                    break;
+                default:
+                    throw new ArgumentException("Unsupported File Type: " + fileType);
+
+            }
+            Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save As New "+fileType+" File",
+                DefaultExt = fileType,
+                Filter = filterText,
+                FileName = "ExtractedData_"+DateTimes[0].ToString("yyyyMMdd-HHmmss") 
+            };
+            if (!String.IsNullOrEmpty(defaultPath)) dialog.InitialDirectory = defaultPath;
+
+            if (dialog.ShowDialog(owner) == true && dialog.FileNames != null)
+            {
+                try
+                {
+                    // Open the file and start writing to it
+                    // IS this the right way to write? Calling sr.Write() multiple times may be slow.
+                    // Alternative is to construct a buffer string
+                    using (StreamWriter sr = new StreamWriter(dialog.OpenFile(), Encoding.ASCII, 65535))
+                    {
+                        // write the first line (header line)
+                        sr.Write("Time"+delimiter);
+                        for (i = 0; i < Tags.Length; i++)
+                            sr.Write(Tags[i] + delimiter);
+                        for(j=0;j<DateTimes.Length; j++)
+                        {
+                            if (DateTimes[i] > endDateTime)
+                                break;
+                            else if (DateTimes[i] >= startDateTime)
+                            {
+                                sr.Write("\n"+DateTimes[i].ToString("M/d/yyyy HH:mm:ss")+delimiter);
+                                for (i = 0; i < RawData.Count; i++)
+                                {
+                                    sr.Write(RawData[i][j]);
+                                    sr.Write(delimiter);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch(Exception e)
+                {
+                    MessageBox.Show("Fail to write " + fileType + " file: " + dialog.FileName + "\n" + e.Message);
+                }
+            }
+        }
+
 
     }
 }

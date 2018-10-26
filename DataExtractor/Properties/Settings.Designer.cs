@@ -22,5 +22,61 @@ namespace DataExtractor.Properties {
                 return defaultInstance;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public global::System.DateTime StartDateTime {
+            get {
+                return ((global::System.DateTime)(this["StartDateTime"]));
+            }
+            set {
+                this["StartDateTime"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public global::System.DateTime EndDateTime {
+            get {
+                return ((global::System.DateTime)(this["EndDateTime"]));
+            }
+            set {
+                this["EndDateTime"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public string[] Tags {
+            get {
+                return ((string[])(this["Tags"]));
+            }
+            set {
+                this["Tags"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public string[] DataFiles {
+            get {
+                return ((string[])(this["DataFiles"]));
+            }
+            set {
+                this["DataFiles"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string FilePath {
+            get {
+                return ((string)(this["FilePath"]));
+            }
+            set {
+                this["FilePath"] = value;
+            }
+        }
     }
 }

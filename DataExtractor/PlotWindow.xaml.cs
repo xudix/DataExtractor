@@ -117,6 +117,38 @@ namespace DataExtractor
             }
         }
 
+        // The min value of Y axis
+        private double yMin = Double.NaN;
+        public double YMin
+        {
+            get
+                => yMin;
+            set
+            {
+                if (yMin != value)
+                {
+                    yMin = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        // The max value of Y axis
+        private double yMax = Double.NaN;
+        public double YMax
+        {
+            get
+                => yMax;
+            set
+            {
+                if (yMax != value)
+                {
+                    yMax = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
         // Constructor
         public PlotWindow(DateTime startDateTime, DateTime endDateTime, string[] selectedTags, string[] selectedFiles, int interval = 1, int pointsPerLine = 500)
         {
@@ -183,8 +215,28 @@ namespace DataExtractor
         // Create SeriesCollection from a List of float[]. Each LineSeries in SeriesCollection contains about pointsPerLine points.
         // This overload takes the whole ExtractedData object and start/end datetime as the input.
         private static SeriesCollection PickPoints(ExtractedData extractedData, DateTime startDateTime, DateTime endDateTime, int pointsPerLine)
-            => PickPoints(extractedData.RawData, extractedData.Tags, Array.IndexOf<DateTime>(extractedData.DateTimes, startDateTime),
-                Array.IndexOf<DateTime>(extractedData.DateTimes, endDateTime), pointsPerLine);
+        {
+            int startIndex=0, endIndex;
+            if (startDateTime > endDateTime)
+            {
+                DateTime temp = startDateTime;
+                startDateTime = endDateTime;
+                endDateTime = temp;
+            }
+            // find the first timestamp that is larger than startDateTime. Will start PickPoints from here
+            while (startIndex < extractedData.pointCount && extractedData.DateTimes[startIndex] < startDateTime)
+                startIndex++;
+            // If we reach the end of the data and found no time stamp larger than startDateTime, will return an empty object
+            if (startIndex == extractedData.pointCount)
+                return new SeriesCollection();
+            endIndex = startIndex;
+            // find the fist timeStamp that is larger than endDateTime. End PickPoints one point before that.
+            while (startIndex < extractedData.pointCount && extractedData.DateTimes[endIndex] <= endDateTime)
+                endIndex++;
+            endIndex--;
+
+            return PickPoints(extractedData.RawData, extractedData.Tags, startIndex, endIndex, pointsPerLine);
+        }
 
 
         // Create an array of string from an array of DateTime. The new array contains about pointsPerLine points.
@@ -219,9 +271,31 @@ namespace DataExtractor
         }
 
         private static string[] PickDates(DateTime[] rawData, DateTime startDateTime, DateTime endDateTime, int pointsPerLine, string format = "M/d H:mm")
-            => PickDates(rawData, Array.IndexOf<DateTime>(rawData, startDateTime), Array.IndexOf<DateTime>(rawData, endDateTime), pointsPerLine, format);
+        {
+            int startIndex = 0, endIndex;
+            if (startDateTime > endDateTime)
+            {
+                DateTime temp = startDateTime;
+                startDateTime = endDateTime;
+                endDateTime = temp;
+            }
+            // find the first timestamp that is larger than startDateTime. Will start PickPoints from here
+            while (startIndex < rawData.Length && rawData[startIndex] < startDateTime)
+                startIndex++;
+            // If we reach the end of the data and found no time stamp larger than startDateTime, will return an empty object
+            if (startIndex == rawData.Length)
+                return new string[0];
+            endIndex = startIndex;
+            // find the fist timeStamp that is larger than endDateTime. End PickPoints one point before that.
+            while (startIndex < rawData.Length && rawData[endIndex] <= endDateTime)
+                endIndex++;
+            endIndex--;
 
-        // 
+            return PickDates(rawData, startIndex, endIndex, pointsPerLine, format);
+        }
+            
+
+        // If the start/end datetime or PointsPerLine is changed, will regenerate the PoitnsToPlot collection as well as the DateTimeStrs
         private void UpdatePoints()
         {
             PointsToPlot = PickPoints(extractedData, StartDateTime, EndDateTime, PointsPerLine);
@@ -242,16 +316,38 @@ namespace DataExtractor
             YAxis.MaxValue = Double.NaN;
         }
 
+        // Reset the min value of X axis to earliest datetime
+        private void XAxisMinReset_Click(object sender, RoutedEventArgs e)
+        {
+            StartDateTime = extractedData.DateTimes[0];
+        }
 
+        // Reset the max value of X axis to earliest datetime
+        private void XAxisMaxReset_Click(object sender, RoutedEventArgs e)
+        {
+            StartDateTime = extractedData.DateTimes[extractedData.pointCount - 1];
+        }
+
+        // Reset the min value of Y axis to earliest datetime
+        private void YAxisMinReset_Click(object sender, RoutedEventArgs e)
+        {
+            YMin = Double.NaN;
+        }
+
+        // Reset the max value of Y axis to earliest datetime
+        private void YAxisMaxReset_Click(object sender, RoutedEventArgs e)
+        {
+            YMax = Double.NaN;
+        }
     }
 
-    // This class connects a input box with a DateTime object via the ExtactedData.ParseDate method
+    // This class connects a input box with a DateTime object via the ExtactedData.ParseDateTime method
     [ValueConversion(typeof(DateTime), typeof(string))]
     public class StringDateTimeConverter : IValueConverter
     {
         // Convert method is from Source to Target. Source is DateTime and target is string
         public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
-            (value != null) ? ((DateTime)value).ToString(@"yyyy/M/d H:m:s") : "";
+            (value != null) ? ((DateTime)value).ToString(@"yyyy/M/d H:mm:ss") : "";
 
         // ConvertBack method is from Target to Source
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
@@ -263,6 +359,32 @@ namespace DataExtractor
             catch
             {
                 return null;
+            }
+        }
+    }
+
+    // This class connects the Y axis min and max input box to corresponding properties
+    // The main purpose of this class is to handle Double.NaN.
+    // When the min/max property is set to NaN, the input box will show empty string
+    [ValueConversion(typeof(double), typeof(string))]
+    public class StrDoubleConverter : IValueConverter
+    {
+        // Convert method is from Source to Target. Source is Double and target is string
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+            (!Double.IsNaN((double)value)) ? ((double)value).ToString("f") : "";
+
+        // ConvertBack method is from Target to Source
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            if ((string)value == "")
+                return Double.NaN;
+            try
+            {
+                return Double.Parse((string)value);
+            }
+            catch
+            {
+                return Double.NaN;
             }
         }
     }

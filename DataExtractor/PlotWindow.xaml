@@ -9,6 +9,7 @@
         Title="Plot" Height="450" Width="800">
     <Window.Resources>
         <local:StringDateTimeConverter x:Key="StrDateTimeConverter"/>
+        <local:StrDoubleConverter x:Key="StrDoubleConverter"/>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -27,11 +28,13 @@
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
                             MouseDoubleClick="CartesianChart_MouseDoubleClick">
             <lvc:CartesianChart.AxisY>
-                <lvc:Axis Name="YAxis" Title="{Binding Text, Source={x:Reference yTitleInput}, Mode=OneWay}"></lvc:Axis>
+                <lvc:Axis Name="YAxis" Title="{Binding Text, Source={x:Reference yTitleInput}, Mode=OneWay}" Foreground="Black"  
+                          MaxValue="{Binding YMax}" MinValue="{Binding YMin}">
+                </lvc:Axis>
                 <!-->For some reason you have to use x:Reference here. It seems that the TitleInput is not visible in Chart<-->
             </lvc:CartesianChart.AxisY>
             <lvc:CartesianChart.AxisX>
-                <lvc:Axis Name="XAxis" Title="{Binding Text, Source={x:Reference xTitleInput}, Mode=OneWay}" Labels="{Binding DateTimeStrs}" ></lvc:Axis>
+                <lvc:Axis Name="XAxis" Title="{Binding Text, Source={x:Reference xTitleInput}, Mode=OneWay}" Foreground="Black" Labels="{Binding DateTimeStrs}" ></lvc:Axis>
             </lvc:CartesianChart.AxisX>
         </lvc:CartesianChart>
 
@@ -83,9 +86,9 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <Label Grid.ColumnSpan="3" >Plot Title</Label>
@@ -96,20 +99,22 @@
                 <TextBox x:Name="yTitleInput" Grid.Row="5" Grid.ColumnSpan="3" Margin="10,0,0,0" >Value</TextBox>
                 <Label Grid.Row="6" Grid.ColumnSpan="3">X Axis Range</Label>
                 <Label Grid.Row="7" Margin="10,0,0,0">From</Label>
-                <TextBox x:Name="xAxisMinnput" Grid.Row="7" Grid.Column="1" Width="100" Margin="0,2"
-                         Text="{Binding StartDateTime, Converter={StaticResource StrDateTimeConverter}}"></TextBox>
-                <Button x:Name="xAxisMinReset" Grid.Row="7" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <TextBox x:Name="xAxisMinnput" Grid.Row="7" Grid.Column="1" Margin="0,2"
+                         Text="{Binding StartDateTime, Converter={StaticResource StrDateTimeConverter}}" Width="100"/>
+                <Button x:Name="xAxisMinReset" Grid.Row="7" Grid.Column="2" Margin="5,5,0,5" Click="XAxisMinReset_Click">Reset</Button>
                 <Label Grid.Row="8" Margin="10,0,0,0">To</Label>
                 <TextBox x:Name="xAxisMaxInput" Grid.Row="8" Grid.Column="1" Margin="0,2"
                          Text="{Binding EndDateTime, Converter={StaticResource StrDateTimeConverter}}"></TextBox>
-                <Button x:Name="xAxisMaxReset" Grid.Row="8" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <Button x:Name="xAxisMaxReset" Grid.Row="8" Grid.Column="2" Margin="5,5,0,5" Click="XAxisMaxReset_Click">Reset</Button>
                 <Label Grid.Row="9" Grid.ColumnSpan="3">Y Axis Range</Label>
                 <Label Grid.Row="10" Margin="10,0,0,0">From</Label>
-                <TextBox x:Name="yAxisMinnput" Grid.Row="10" Grid.Column="1" Margin="0,2"></TextBox>
-                <Button x:Name="yAxisMinReset" Grid.Row="10" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <TextBox x:Name="yAxisMinnput" Grid.Row="10" Grid.Column="1" Margin="0,2"
+                         Text="{Binding YMin, Converter={StaticResource StrDoubleConverter}}" />
+                <Button x:Name="yAxisMinReset" Grid.Row="10" Grid.Column="2" Margin="5,5,0,5" Click="YAxisMinReset_Click">Reset</Button>
                 <Label Grid.Row="11" Margin="10,0,0,0">To</Label>
-                <TextBox x:Name="yAxisMaxInput" Grid.Row="11" Grid.Column="1" Margin="0,2"></TextBox>
-                <Button x:Name="yAxisMaxReset" Grid.Row="11" Grid.Column="2" Margin="5,5,0,5">Reset</Button>
+                <TextBox x:Name="yAxisMaxInput" Grid.Row="11" Grid.Column="1" Margin="0,2" 
+                         Text="{Binding YMax, Converter={StaticResource StrDoubleConverter}}"></TextBox>
+                <Button x:Name="yAxisMaxReset" Grid.Row="11" Grid.Column="2" Margin="5,5,0,5" Click="YAxisMaxReset_Click">Reset</Button>
                 <Label Grid.Row="12">Resolution</Label>
                 <TextBox x:Name="resolutionInput" Grid.Row="12" Grid.Column="1" Margin="0,2" Text="{Binding PointsPerLine}"></TextBox>
 

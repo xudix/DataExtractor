@@ -48,7 +48,7 @@ namespace DataExtractor
 
         public MainWindow()
         {
-
+            ReadSettings();
             InitializeComponent();
             DataContext = this;
             startDateInput.Focus();
@@ -124,8 +124,32 @@ namespace DataExtractor
             {
                 PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1,300);
                 plotWindow.Show();
+                WriteSettings();
             }
                 
+        }
+
+        // record the settings from user input to a file, including start/end datetime, tag list, and files
+        private void WriteSettings()
+        {
+            Properties.Settings.Default.StartDateTime = StartDateTime;
+            Properties.Settings.Default.EndDateTime = EndDateTime;
+            Properties.Settings.Default.Tags = SelectedTags;
+            Properties.Settings.Default.DataFiles = SelectedFiles;
+            Properties.Settings.Default.FilePath = filePath;
+            Properties.Settings.Default.Save();
+        }
+
+        // record the settings from user input to a file, including start/end datetime, tag list, and files
+        private void ReadSettings()
+        {
+            startDateTime = Properties.Settings.Default.StartDateTime;
+            StartTime = startDateTime.TimeOfDay;
+            endDateTime = Properties.Settings.Default.EndDateTime;
+            EndTime = endDateTime.TimeOfDay;
+            SelectedTags = Properties.Settings.Default.Tags;
+            SelectedFiles = Properties.Settings.Default.DataFiles;
+            filePath = Properties.Settings.Default.FilePath;
         }
 
         // Selected Tags. It's an array of string.
