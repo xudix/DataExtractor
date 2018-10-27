@@ -27,9 +27,12 @@ namespace DataExtractor
     /// </summary>
 
         // Possible improvements:
-        // Data validation in date and time input
+        // 
         // date selector for start and end dates
         // Rewrite the ControlTemplate of date input to include a interactive date picker
+        // Drag-and-drop file import
+        // Reading tags directly from data file
+
 
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
@@ -45,7 +48,7 @@ namespace DataExtractor
 
         public MainWindow()
         {
-
+            ReadSettings();
             InitializeComponent();
             DataContext = this;
             startDateInput.Focus();
@@ -117,7 +120,45 @@ namespace DataExtractor
 
         private void PlotButton_Click(object sender, RoutedEventArgs e)
         {
-            ExtractedData extractedData = new ExtractedData(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1);
+            if(SelectedTags != null && selectedFiles != null)
+            {
+                PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1, 600);
+                plotWindow.Show();
+                WriteSettings();
+            }
+                
+        }
+
+        private void ExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedTags != null && selectedFiles != null)
+            {
+                (new ExtractedData(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1)).WriteToFile(StartDateTime, EndDateTime, this, "csv", filePath);
+                WriteSettings();
+            }
+        }
+
+        // record the settings from user input to a file, including start/end datetime, tag list, and files
+        private void WriteSettings()
+        {
+            Properties.Settings.Default.StartDateTime = StartDateTime;
+            Properties.Settings.Default.EndDateTime = EndDateTime;
+            Properties.Settings.Default.Tags = SelectedTags;
+            Properties.Settings.Default.DataFiles = SelectedFiles;
+            Properties.Settings.Default.FilePath = filePath;
+            Properties.Settings.Default.Save();
+        }
+
+        // record the settings from user input to a file, including start/end datetime, tag list, and files
+        private void ReadSettings()
+        {
+            startDateTime = Properties.Settings.Default.StartDateTime;
+            StartTime = startDateTime.TimeOfDay;
+            endDateTime = Properties.Settings.Default.EndDateTime;
+            EndTime = endDateTime.TimeOfDay;
+            SelectedTags = Properties.Settings.Default.Tags;
+            SelectedFiles = Properties.Settings.Default.DataFiles;
+            filePath = Properties.Settings.Default.FilePath;
         }
 
         // Selected Tags. It's an array of string.
@@ -200,7 +241,7 @@ namespace DataExtractor
         // Contains end Date and Time from user input
         // When the end time input is modfied, it will be updated here as well
         //  The endDateInput textbox is bound to this object
-        private DateTime endDateTime = DateTime.Today;
+        private DateTime endDateTime = DateTime.Today+(new TimeSpan(23,59,59));
         public DateTime EndDateTime
         {
             get

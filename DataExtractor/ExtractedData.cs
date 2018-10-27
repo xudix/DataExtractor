@@ -1,6 +1,7 @@
 ﻿using LiveCharts;
 using LiveCharts.Wpf;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 
 namespace DataExtractor
 {
@@ -15,13 +17,16 @@ namespace DataExtractor
     public class ExtractedData
     {
         // Constructor
-        // 
+        // The constructor will first construct a List of file recores, sort the records, figure out what files are needed,
+        // then call ExtractData to get data
         public ExtractedData(DateTime startDateTime, DateTime endDateTime, string[] tags, string[] dataFiles, int interval = 1)
         {
-
+            Tags = new string[tags.Length];
+            tags.CopyTo(Tags, 0);
             // Construct an array of the file records
             List<FileRecord> fileRecords = new List<FileRecord>();
             int i;
+            filePath = Path.GetDirectoryName(dataFiles[0]);
             foreach (string fileName in dataFiles)
             {
                 FileRecord record = new FileRecord(fileName);
@@ -49,24 +54,31 @@ namespace DataExtractor
                 for (i = 0; i < fileRecords.Count - 1;)
                 {
                     // if next file start before start datetime
-                    // if next file start after start DateTime. This file is needed.
                     if (fileRecords[i + 1].startTime <= startDateTime)
                         fileRecords.RemoveAt(i);
                     else
                     {
-                        i++;
+                        // if next file start after start DateTime. This file is needed.
                         if (fileRecords[i + 1].startTime > endDateTime)
                         {
                             // next file start after endDateTime. Later files will not be needed
                             fileRecords.RemoveRange(i + 1, fileRecords.Count - i - 1);
                             break;
                         }
+                        i++;
                     }
                 }
             }
             // Get data from the listed files
-            SeriesCollection pointsToPlot = ExtractData(startDateTime, endDateTime, tags, fileRecords, interval);
+            Extract(startDateTime, endDateTime, Tags, fileRecords, interval);
         }
+
+        // data in the class
+        public List<float[]> RawData { get; set; }
+        public DateTime[] DateTimes { get; set; }
+        public string[] Tags { get; set; }
+        public int pointCount;
+        private string filePath;
 
         // Try to parse the date input from user into a DateTime struct
         public static DateTime ParseDate(string dateStr = "")
@@ -431,25 +443,23 @@ namespace DataExtractor
 
         // Extract data from all files in fileRecords according to the tagList between startDateTime and endDateTime
         // All files in the fileRecords will be opened
-        private static SeriesCollection ExtractData(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
+        private void Extract(DateTime startDateTime, DateTime endDateTime, string[] tagList, List<FileRecord> fileRecords, int interval = 1)
         {
-
-            SeriesCollection collectionToPlot = new SeriesCollection();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            //PointsToPlot = new SeriesCollection();
             // This is a List that contains the data to be returend
-            List<float[]> data = new List<float[]>(tagList.Length);
+            RawData = new List<float[]>(tagList.Length);
             // use a temporary array to store the data obtained from each line
             float[] dataOfOnePoint = new float[tagList.Length];
-            // An array of DateTime objects that contains the time stamps of the data points
-            DateTime[] dateTimes = new DateTime[2];
+            
             // A string that represents a line from the csv file. line1 and line2 are the first two lines.
             // Reading the first two lines allows the method to determine the time interval between the two lines, which is used to size the arrays
-            string line, titleLine, line1, line2, timestr1, timestr2, datestr1, datestr2;
+            string line, titleLine, line1, line2;
             string[] splitTitleLine;
             // delimiter used by the file
             char delimiter;
             // Array of integers corresponding to the position of the tags in a line
             List<IndexWithPosition> indexOfTags = new List<IndexWithPosition>(tagList.Length);
-            int[] indexArray;
 
             // A delegate that specifies how to retrive datetime from a line.
             // if the file contain a "date" or ";date" column, the method for translating the datetime is different
@@ -460,7 +470,7 @@ namespace DataExtractor
             // nPoints is the estimated numbe of data points to be extracted, based on the time interval between points
             int nPoints = 0;
             // pointCount is the points extracted. If pointCount get to the length of the array, make the array larger
-            int pointCount = 0;
+            pointCount = 0;
             // skipCounter is used to skip data points that is not wanted. skipping behavior is controlled by parameter interval
             int skipCounter = interval;
             // i is the counter used in for loops
@@ -492,7 +502,6 @@ namespace DataExtractor
                     // number of columns in the csv file
                     nColumn = splitTitleLine.Length;
 
-
                     // Find where the tags are located
                     for (i = 0; i < tagList.Length; i++)
                     {
@@ -507,8 +516,6 @@ namespace DataExtractor
                     }
                     // Sort the List indexOfTags based on the index. Thus, we can get the value of the tags one by one as we go through one line of the data file
                     indexOfTags.Sort();
-
-
 
                     // Read the first two lines, and figure out the time interval between two lines in the data file
                     line1 = sr.ReadLine();
@@ -542,7 +549,7 @@ namespace DataExtractor
                     // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
                     // Try to estimate the number of points to be extracted. Initialize array accordingly
                     // Then create the array for the data
-                    if (data.Count == 0)
+                    if (RawData.Count == 0)
                     {
                         nPoints = (int)((endDateTime - startDateTime).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
                         // if for any reason nPoints is not positive, there's something wrong and the program will abort here
@@ -550,7 +557,7 @@ namespace DataExtractor
                             throw new ArgumentException("Number of points is not positive.");
                         for (i = 0; i < tagList.Length; i++)
                         {
-                            data.Add(new float[nPoints]);
+                            RawData.Add(new float[nPoints]);
                             // //Considering that it should only take a few MBs to store all the data, there's no need to save on the array
                             // //Go over the whole list indexOfTags, find the corresponding record based on the Position, then determine if the tag is found in the file.
                             //foreach(IndexWithPosition tagRecord in indexOfTags)
@@ -565,13 +572,15 @@ namespace DataExtractor
                             //    }
                             //}
                         }
-                        dateTimes = new DateTime[nPoints];
+                        DateTimes = new DateTime[nPoints];
+                        //DateTimeStrs = new string[nPoints];
                         if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
                         {
-                            dateTimes[pointCount] = dateTime1;
+                            DateTimes[pointCount] = dateTime1;
+                            //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                             ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                             for (i = 0; i < indexOfTags.Count; i++)
-                                data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                             skipCounter = 1;
                             pointCount++;
                         }
@@ -598,14 +607,14 @@ namespace DataExtractor
                     else if (dateTime1 >= startDateTime)
                     {
                         // Time stamp is after startDateTime. Take the point
-                        if (pointCount > 0 && dateTime1 == dateTimes[pointCount - 1])
+                        if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
                         {
                             // New time stamp is same as previous
                             // override the previous data by this one
                             pointCount--;
                             ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                             for (i = 0; i < indexOfTags.Count; i++)
-                                data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                             pointCount++;
                             skipCounter = 1;
                         }
@@ -621,14 +630,15 @@ namespace DataExtractor
                                     for (i = 0; i < indexOfTags.Count; i++)
                                     {
                                         float[] temp = new float[nPoints];
-                                        data[i].CopyTo(temp, pointCount);
-                                        data[i] = temp;
+                                        RawData[i].CopyTo(temp, pointCount);
+                                        RawData[i] = temp;
                                     }
                                 }
-                                dateTimes[pointCount] = dateTime1;
+                                DateTimes[pointCount] = dateTime1;
+                                //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                 ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
-                                    data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                    RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                                 pointCount++;
                                 skipCounter = 1;
                             }
@@ -654,14 +664,15 @@ namespace DataExtractor
                                     for (i = 0; i < indexOfTags.Count; i++)
                                     {
                                         float[] temp = new float[nPoints];
-                                        data[i].CopyTo(temp, pointCount);
-                                        data[i] = temp;
+                                        RawData[i].CopyTo(temp, pointCount);
+                                        RawData[i] = temp;
                                     }
                                 }
-                                dateTimes[pointCount] = dateTime1;
+                                DateTimes[pointCount] = dateTime1;
+                                //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                 ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
-                                    data[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                    RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                                 pointCount++;
                                 skipCounter = 1;
                             }
@@ -681,24 +692,34 @@ namespace DataExtractor
             {
                 // double the size of the array
                 nPoints = pointCount;
-                for (i = 0; i < indexOfTags.Count; i++)
+                for (i = 0; i < tagList.Length  ; i++)
                 {
                     float[] temp = new float[nPoints];
-                    data[i].CopyTo(temp, pointCount);
-                    data[i] = temp;
+                    Array.Copy(RawData[i], temp, pointCount);
+                    RawData[i] = temp;
                 }
+                DateTime[] tempDateTime = new DateTime[nPoints];
+                Array.Copy(DateTimes, tempDateTime, pointCount);
+                DateTimes = tempDateTime;
+                //string[] tempDateTimeStr = new string[nPoints];
+                //Array.Copy(DateTimeStrs, tempDateTimeStr, pointCount);
+                //DateTimeStrs = tempDateTimeStr;
             }
-            // Copy
-            for (i = 0; i<tagList.Length; i++)
-            {
-                var series = new LineSeries()
-                {
-                    Title = tagList[i],
-                    Values = new ChartValues<float>(data[i])
-                };
-                collectionToPlot.Add(series);
-            }
-            return collectionToPlot;
+            // Convert the arrays into LineSeries
+            //for (i = 0; i<tagList.Length; i++)
+            //{
+            //    var series = new LineSeries()
+            //    {
+            //        Title = tagList[i],
+            //        Values = new ChartValues<float>(RawData[i]),
+            //        LineSmoothness = 0,
+            //        PointGeometry = null,
+            //        Fill = Brushes.Transparent,
+            //    };
+            //    PointsToPlot.Add(series);
+            //}
+            watch.Stop();
+            Console.WriteLine("Data Extraction Completed in " + watch.ElapsedMilliseconds+"ms");
         }
 
         // Take a line from the data file and read the find the datetime of the the string
@@ -938,7 +959,7 @@ namespace DataExtractor
 
         // Parse the datetime string into DateTime struct. 
         // Assume that in the string date and time is separated by a space
-        private static DateTime ParseDateTime(string datetime) =>
+        public static DateTime ParseDateTime(string datetime) =>
             ParseDate(ReadStrUntil(datetime, ' ')) + ParseTime(ReadStrUntil(datetime, ' ', 1));
 
         // A FileRecord include the file pathname, file type, and start time.
@@ -1000,6 +1021,159 @@ namespace DataExtractor
                 Index.CompareTo(other.Index);
         }
 
+        // Write the extracted data to a file that the user specified
+        public void WriteToFile(DateTime startDateTime, DateTime endDateTime, Window owner, string fileType, string defaultPath = "")
+        {
+            
+            char delimiter;
+            int i,j;
+            // filterText is used to define the default file type in the save file dialog
+            string filterText;
+            switch (fileType.ToLower())
+            {
+                case "csv":
+                    delimiter = ',';
+                    filterText = "CSV File (.csv) | *.csv";
+                    break;
+                case "txt":
+                    delimiter = '\t';
+                    filterText = "Text File (.txt)|*.txt";
+                    break;
+                default:
+                    throw new ArgumentException("Unsupported File Type: " + fileType);
+
+            }
+            Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save As New " + fileType + " File",
+                DefaultExt = fileType,
+                Filter = filterText,
+                FileName = "ExtractedData_" + DateTimes[0].ToString("yyyyMMdd-HHmmss"),
+                InitialDirectory = (!String.IsNullOrEmpty(defaultPath)) ? defaultPath : filePath
+            };
+            
+
+            if (dialog.ShowDialog(owner) == true && dialog.FileNames != null)
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    // Open the file and start writing to it
+                    // IS this the right way to write? Calling sr.Write() multiple times may be slow.
+                    // After testing, creating a string for each line before calling sr.Write() is about 10% slower.
+                    using (StreamWriter sr = new StreamWriter(dialog.OpenFile(), Encoding.ASCII, 65535))
+                    {
+                        // write the first line (header line)
+                        sr.Write("Time"+delimiter);
+                        for (i = 0; i < Tags.Length; i++)
+                            sr.Write(Tags[i] + delimiter);
+                        for(j=0;j<DateTimes.Length; j++)
+                        {
+                            if (DateTimes[j] > endDateTime)
+                                break;
+                            else if (DateTimes[j] >= startDateTime)
+                            {
+                                sr.Write("\n"+DateTimes[j].ToString("M/d/yyyy HH:mm:ss")+delimiter);
+                                for (i = 0; i < RawData.Count; i++)
+                                {
+                                    sr.Write(RawData[i][j]);
+                                    sr.Write(delimiter);
+                                }
+                            }
+                        }
+                    }
+                    Console.WriteLine("Data export completed in " + watch.ElapsedMilliseconds + " ms");
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show("Fail to write " + fileType + " file: " + dialog.FileName + "\n" + e.Message);
+                }
+            }
+            
+        }
+
+        // Got this pipeline version idea from: https://stackoverflow.com/a/9437509/6511250
+        // The main idea is separate the parse and write file tasks into two different threads
+        // The first task take data from the source, parse it into a string, and put into a BlockingCollection
+        // The second task take string from the BlockingCollection and write it into the file
+        // Still slower than the single thread version.
+        public void WriteToFile_PipeLine(DateTime startDateTime, DateTime endDateTime, Window owner, string fileType, string defaultPath = "")
+        {
+            string delimiter;
+            int i, j;
+            // filterText is used to define the default file type in the save file dialog
+            string filterText;
+            switch (fileType.ToLower())
+            {
+                case "csv":
+                    delimiter = ",";
+                    filterText = "CSV File (.csv) | *.csv";
+                    break;
+                case "txt":
+                    delimiter = "\t";
+                    filterText = "Text File (.txt)|*.txt";
+                    break;
+                default:
+                    throw new ArgumentException("Unsupported File Type: " + fileType);
+
+            }
+            Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save As New " + fileType + " File",
+                DefaultExt = fileType,
+                Filter = filterText,
+                FileName = "ExtractedData_" + DateTimes[0].ToString("yyyyMMdd-HHmmss"),
+                InitialDirectory = (!String.IsNullOrEmpty(defaultPath)) ? defaultPath : filePath
+            };
+
+
+            if (dialog.ShowDialog(owner) == true && dialog.FileNames != null)
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    using (var linesToWrite = new BlockingCollection<string>())
+                    {
+                        var parseTask = Task.Run(() =>
+                        {
+                            string line = "Time" + delimiter;
+                            for (i = 0; i < Tags.Length; i++)
+                                line += Tags[i] + delimiter;
+                            linesToWrite.Add(line);
+                            for (j = 0; j < DateTimes.Length; j++)
+                            {
+                                if (DateTimes[j] > endDateTime)
+                                    break;
+                                else if (DateTimes[j] >= startDateTime)
+                                {
+                                    line = "\n" + DateTimes[j].ToString("M/d/yyyy HH:mm:ss") + delimiter;
+                                    for (i = 0; i < RawData.Count; i++)
+                                    {
+                                        line += RawData[i][j] + delimiter;
+                                    }
+                                    linesToWrite.Add(line);
+                                }
+                            }
+                            linesToWrite.CompleteAdding();
+                        });
+                        using (StreamWriter sr = new StreamWriter(dialog.OpenFile(), Encoding.ASCII, 65535))
+                        {
+                            foreach (string line in linesToWrite.GetConsumingEnumerable())
+                                sr.Write(line);
+                            parseTask.Wait();
+                            parseTask.Dispose();
+                        }
+                    }
+
+                    Console.WriteLine("Data export completed in " + watch.ElapsedMilliseconds + " ms");
+                    
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show("Fail to write " + fileType + " file: " + dialog.FileName + "\n" + e.Message);
+                }
+            }
+        }
 
     }
 }

@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DataExtractor"
         mc:Ignorable="d"
-        Title="Data Extractor: Data Extraction and Visulization" Height="250" Width="500" MinWidth="300" MinHeight="100">
+        Title="Data Extractor: Data Extraction and Visulization" Height="250" Width="600" MinWidth="300" MinHeight="100">
     <Window.Resources>
         <local:StringArrayConverter x:Key="StrArrConverter"/>
         <local:StringDateConverter x:Key="StrDateConverter"/>
@@ -27,6 +27,7 @@
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition/>
+            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
@@ -62,9 +63,12 @@
         <TextBox x:Name="fileInput" Grid.ColumnSpan="2" Grid.Column="3" Grid.Row="3" Margin="5,0,0,0"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AcceptsReturn="True"
                  Text="{Binding SelectedFiles, Converter={StaticResource StrArrConverter}, ConverterParameter=file, Mode=TwoWay}"></TextBox>
+        <!-->
         <TextBlock x:Name="testOutput1" Grid.Row="4" Text="{Binding StartDateTime, Mode=OneWay}"/>
         <TextBlock x:Name="testOutput2" Grid.Row="4" Grid.Column ="3" Text="{Binding EndDateTime, Mode=OneWay}"/>
-        <Button Name="plotButton" Grid.Column="5" Grid.Row="4" Margin="0,4,0,0" Click="PlotButton_Click">Plot</Button>
+        <-->
+        <Button Name="exportButton" Grid.Column="5" Grid.Row="4" Margin="0,4,0,0" Click="ExportButton_Click"> Export </Button>
+        <Button Name="plotButton" Grid.Column="6" Grid.Row="4" Margin="4,4,0,0" Click="PlotButton_Click">  Plot  </Button>
 
     </Grid>
 </Window>
