@@ -1,6 +1,7 @@
 ﻿using LiveCharts;
 using LiveCharts.Wpf;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,6 +26,7 @@ namespace DataExtractor
             // Construct an array of the file records
             List<FileRecord> fileRecords = new List<FileRecord>();
             int i;
+            filePath = Path.GetDirectoryName(dataFiles[0]);
             foreach (string fileName in dataFiles)
             {
                 FileRecord record = new FileRecord(fileName);
@@ -76,6 +78,7 @@ namespace DataExtractor
         public DateTime[] DateTimes { get; set; }
         public string[] Tags { get; set; }
         public int pointCount;
+        private string filePath;
 
         // Try to parse the date input from user into a DateTime struct
         public static DateTime ParseDate(string dateStr = "")
@@ -1021,9 +1024,10 @@ namespace DataExtractor
         // Write the extracted data to a file that the user specified
         public void WriteToFile(DateTime startDateTime, DateTime endDateTime, Window owner, string fileType, string defaultPath = "")
         {
+            
             char delimiter;
             int i,j;
-            // filterText is used 
+            // filterText is used to define the default file type in the save file dialog
             string filterText;
             switch (fileType.ToLower())
             {
@@ -1041,20 +1045,22 @@ namespace DataExtractor
             }
             Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "Save As New "+fileType+" File",
+                Title = "Save As New " + fileType + " File",
                 DefaultExt = fileType,
                 Filter = filterText,
-                FileName = "ExtractedData_"+DateTimes[0].ToString("yyyyMMdd-HHmmss") 
+                FileName = "ExtractedData_" + DateTimes[0].ToString("yyyyMMdd-HHmmss"),
+                InitialDirectory = (!String.IsNullOrEmpty(defaultPath)) ? defaultPath : filePath
             };
-            if (!String.IsNullOrEmpty(defaultPath)) dialog.InitialDirectory = defaultPath;
+            
 
             if (dialog.ShowDialog(owner) == true && dialog.FileNames != null)
             {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
                     // Open the file and start writing to it
                     // IS this the right way to write? Calling sr.Write() multiple times may be slow.
-                    // Alternative is to construct a buffer string
+                    // After testing, creating a string for each line before calling sr.Write() is about 10% slower.
                     using (StreamWriter sr = new StreamWriter(dialog.OpenFile(), Encoding.ASCII, 65535))
                     {
                         // write the first line (header line)
@@ -1063,11 +1069,11 @@ namespace DataExtractor
                             sr.Write(Tags[i] + delimiter);
                         for(j=0;j<DateTimes.Length; j++)
                         {
-                            if (DateTimes[i] > endDateTime)
+                            if (DateTimes[j] > endDateTime)
                                 break;
-                            else if (DateTimes[i] >= startDateTime)
+                            else if (DateTimes[j] >= startDateTime)
                             {
-                                sr.Write("\n"+DateTimes[i].ToString("M/d/yyyy HH:mm:ss")+delimiter);
+                                sr.Write("\n"+DateTimes[j].ToString("M/d/yyyy HH:mm:ss")+delimiter);
                                 for (i = 0; i < RawData.Count; i++)
                                 {
                                     sr.Write(RawData[i][j]);
@@ -1076,14 +1082,98 @@ namespace DataExtractor
                             }
                         }
                     }
+                    Console.WriteLine("Data export completed in " + watch.ElapsedMilliseconds + " ms");
                 }
-                catch(Exception e)
+                catch (Exception e)
+                {
+                    MessageBox.Show("Fail to write " + fileType + " file: " + dialog.FileName + "\n" + e.Message);
+                }
+            }
+            
+        }
+
+        // Got this pipeline version idea from: https://stackoverflow.com/a/9437509/6511250
+        // The main idea is separate the parse and write file tasks into two different threads
+        // The first task take data from the source, parse it into a string, and put into a BlockingCollection
+        // The second task take string from the BlockingCollection and write it into the file
+        // Still slower than the single thread version.
+        public void WriteToFile_PipeLine(DateTime startDateTime, DateTime endDateTime, Window owner, string fileType, string defaultPath = "")
+        {
+            string delimiter;
+            int i, j;
+            // filterText is used to define the default file type in the save file dialog
+            string filterText;
+            switch (fileType.ToLower())
+            {
+                case "csv":
+                    delimiter = ",";
+                    filterText = "CSV File (.csv) | *.csv";
+                    break;
+                case "txt":
+                    delimiter = "\t";
+                    filterText = "Text File (.txt)|*.txt";
+                    break;
+                default:
+                    throw new ArgumentException("Unsupported File Type: " + fileType);
+
+            }
+            Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save As New " + fileType + " File",
+                DefaultExt = fileType,
+                Filter = filterText,
+                FileName = "ExtractedData_" + DateTimes[0].ToString("yyyyMMdd-HHmmss"),
+                InitialDirectory = (!String.IsNullOrEmpty(defaultPath)) ? defaultPath : filePath
+            };
+
+
+            if (dialog.ShowDialog(owner) == true && dialog.FileNames != null)
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    using (var linesToWrite = new BlockingCollection<string>())
+                    {
+                        var parseTask = Task.Run(() =>
+                        {
+                            string line = "Time" + delimiter;
+                            for (i = 0; i < Tags.Length; i++)
+                                line += Tags[i] + delimiter;
+                            linesToWrite.Add(line);
+                            for (j = 0; j < DateTimes.Length; j++)
+                            {
+                                if (DateTimes[j] > endDateTime)
+                                    break;
+                                else if (DateTimes[j] >= startDateTime)
+                                {
+                                    line = "\n" + DateTimes[j].ToString("M/d/yyyy HH:mm:ss") + delimiter;
+                                    for (i = 0; i < RawData.Count; i++)
+                                    {
+                                        line += RawData[i][j] + delimiter;
+                                    }
+                                    linesToWrite.Add(line);
+                                }
+                            }
+                            linesToWrite.CompleteAdding();
+                        });
+                        using (StreamWriter sr = new StreamWriter(dialog.OpenFile(), Encoding.ASCII, 65535))
+                        {
+                            foreach (string line in linesToWrite.GetConsumingEnumerable())
+                                sr.Write(line);
+                            parseTask.Wait();
+                            parseTask.Dispose();
+                        }
+                    }
+
+                    Console.WriteLine("Data export completed in " + watch.ElapsedMilliseconds + " ms");
+                    
+                }
+                catch (Exception e)
                 {
                     MessageBox.Show("Fail to write " + fileType + " file: " + dialog.FileName + "\n" + e.Message);
                 }
             }
         }
-
 
     }
 }

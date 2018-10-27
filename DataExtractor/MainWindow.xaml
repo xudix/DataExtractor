@@ -28,6 +28,7 @@
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition/>
             <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -66,7 +67,8 @@
         <TextBlock x:Name="testOutput1" Grid.Row="4" Text="{Binding StartDateTime, Mode=OneWay}"/>
         <TextBlock x:Name="testOutput2" Grid.Row="4" Grid.Column ="3" Text="{Binding EndDateTime, Mode=OneWay}"/>
         <-->
-        <Button Name="plotButton" Grid.Column="5" Grid.Row="4" Margin="0,4,0,0" Click="PlotButton_Click">Plot</Button>
+        <Button Name="exportButton" Grid.Column="5" Grid.Row="4" Margin="0,4,0,0" Click="ExportButton_Click"> Export </Button>
+        <Button Name="plotButton" Grid.Column="6" Grid.Row="4" Margin="4,4,0,0" Click="PlotButton_Click">  Plot  </Button>
 
     </Grid>
 </Window>

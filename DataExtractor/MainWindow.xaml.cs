@@ -122,11 +122,20 @@ namespace DataExtractor
         {
             if(SelectedTags != null && selectedFiles != null)
             {
-                PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles,1,300);
+                PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1, 600);
                 plotWindow.Show();
                 WriteSettings();
             }
                 
+        }
+
+        private void ExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedTags != null && selectedFiles != null)
+            {
+                (new ExtractedData(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1)).WriteToFile(StartDateTime, EndDateTime, this, "csv", filePath);
+                WriteSettings();
+            }
         }
 
         // record the settings from user input to a file, including start/end datetime, tag list, and files

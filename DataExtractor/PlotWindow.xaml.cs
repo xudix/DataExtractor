@@ -231,7 +231,7 @@ namespace DataExtractor
                 return new SeriesCollection();
             endIndex = startIndex;
             // find the fist timeStamp that is larger than endDateTime. End PickPoints one point before that.
-            while (startIndex < extractedData.pointCount && extractedData.DateTimes[endIndex] <= endDateTime)
+            while (endIndex < extractedData.pointCount && extractedData.DateTimes[endIndex] <= endDateTime)
                 endIndex++;
             endIndex--;
 
@@ -287,7 +287,7 @@ namespace DataExtractor
                 return new string[0];
             endIndex = startIndex;
             // find the fist timeStamp that is larger than endDateTime. End PickPoints one point before that.
-            while (startIndex < rawData.Length && rawData[endIndex] <= endDateTime)
+            while (endIndex < rawData.Length && rawData[endIndex] <= endDateTime)
                 endIndex++;
             endIndex--;
 
@@ -338,6 +338,15 @@ namespace DataExtractor
         private void YAxisMaxReset_Click(object sender, RoutedEventArgs e)
         {
             YMax = Double.NaN;
+        }
+
+        private void ExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            extractedData.WriteToFile(StartDateTime, EndDateTime, this, "csv");
+        }
+        private void ExportButton2_Click(object sender, RoutedEventArgs e)
+        {
+            extractedData.WriteToFile_PipeLine(StartDateTime, EndDateTime, this, "csv");
         }
     }
 
