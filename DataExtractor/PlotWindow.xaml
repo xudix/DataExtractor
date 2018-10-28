@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:DataExtractor"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
-        Title="Plot" Height="450" Width="800">
+        Title="Plot" Height="450" Width="900">
     <Window.Resources>
         <local:StringDateTimeConverter x:Key="StrDateTimeConverter"/>
         <local:StrDoubleConverter x:Key="StrDoubleConverter"/>
@@ -16,6 +16,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -24,9 +25,10 @@
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <TextBlock Text="{Binding ElementName=plotTitleInput, Path=Text}" HorizontalAlignment="Center" Grid.Column="1"></TextBlock>
-        <lvc:CartesianChart Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
+        <lvc:CartesianChart x:Name="Chart" Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
-                            MouseDoubleClick="CartesianChart_MouseDoubleClick">
+                            PreviewMouseDoubleClick="CartesianChart_MouseDoubleClick" MouseMove="Chart_MouseMove"
+                            MouseLeftButtonDown="Chart_MouseLeftButtonDown" MouseLeftButtonUp="Chart_MouseLeftButtonUp">
             <lvc:CartesianChart.AxisY>
                 <lvc:Axis Name="YAxis" Title="{Binding Text, Source={x:Reference yTitleInput}, Mode=OneWay}" Foreground="Black"  
                           MaxValue="{Binding YMax}" MinValue="{Binding YMin}">
@@ -37,6 +39,8 @@
                 <lvc:Axis Name="XAxis" Title="{Binding Text, Source={x:Reference xTitleInput}, Mode=OneWay}" Foreground="Black" Labels="{Binding DateTimeStrs}" ></lvc:Axis>
             </lvc:CartesianChart.AxisX>
         </lvc:CartesianChart>
+        <!--TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RawPoint}"/>
+        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ConvertedPoint}"/-->
 
         <ToggleButton Name="settingButton" 
                 Grid.Column="2" IsChecked="True">
@@ -51,7 +55,7 @@
                 </Style>
             </ToggleButton.Style>
         </ToggleButton>
-
+        
         <StackPanel Grid.Column="3" Grid.RowSpan="3" Margin="5,0">
             <StackPanel.Style>
                 <Style TargetType="StackPanel">
@@ -101,7 +105,7 @@
                 <Label Grid.Row="6" Grid.ColumnSpan="3">X Axis Range</Label>
                 <Label Grid.Row="7" Margin="10,0,0,0">From</Label>
                 <TextBox x:Name="xAxisMinnput" Grid.Row="7" Grid.Column="1" Margin="0,2"
-                         Text="{Binding StartDateTime, Converter={StaticResource StrDateTimeConverter}}" Width="100"/>
+                         Text="{Binding StartDateTime, Converter={StaticResource StrDateTimeConverter}}" Width="120"/>
                 <Button x:Name="xAxisMinReset" Grid.Row="7" Grid.Column="2" Margin="5,5,0,5" Click="XAxisMinReset_Click">Reset</Button>
                 <Label Grid.Row="8" Margin="10,0,0,0">To</Label>
                 <TextBox x:Name="xAxisMaxInput" Grid.Row="8" Grid.Column="1" Margin="0,2"
@@ -117,7 +121,7 @@
                          Text="{Binding YMax, Converter={StaticResource StrDoubleConverter}}"></TextBox>
                 <Button x:Name="yAxisMaxReset" Grid.Row="11" Grid.Column="2" Margin="5,5,0,5" Click="YAxisMaxReset_Click">Reset</Button>
                 <Label Grid.Row="12">Resolution</Label>
-                <TextBox x:Name="resolutionInput" Grid.Row="12" Grid.Column="1" Margin="0,2" Text="{Binding PointsPerLine}"></TextBox>
+                <TextBox x:Name="resolutionInput" Grid.Row="12" Grid.Column="1" Margin="0,2" Text="{Binding Resolution}"></TextBox>
                 <Button x:Name="exportButton" Grid.Row="13" Grid.Column="2" Margin="5,5,0,5" Click="ExportButton_Click">Export</Button>
 
             </Grid>
