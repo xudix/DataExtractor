@@ -186,9 +186,68 @@ namespace DataExtractor
         // The chart will zoom in to the rectangular area.
         private Point mouseDownPoint, mouseUpPoint;
         private bool isDrawing;
+        public bool IsDrawing
+        {
+            get => isDrawing;
+            set
+            {
+                if (isDrawing != value)
+                {
+                    isDrawing = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        // ZoomBox shows up when the user use mouse for drag to zoom
+        private double zoomBoxWidth;
+        public double ZoomBoxWidth
+        {
+            get => zoomBoxWidth;
+            set
+            {
+                if(zoomBoxWidth != value)
+                {
+                    zoomBoxWidth = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private double zoomBoxHeight;
+        public double ZoomBoxHeight
+        {
+            get => zoomBoxHeight;
+            set
+            {
+                if (zoomBoxHeight != value)
+                {
+                    zoomBoxHeight = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private Thickness zoomBoxMargin;
+        public Thickness ZoomBoxMargin
+        {
+            get => zoomBoxMargin;
+            set
+            {
+                if (zoomBoxMargin != value)
+                {
+                    zoomBoxMargin = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
 
         // The List of PlotRange will keep track of all previous zooming activities. Thus, zooming can be reversed
         private List<PlotRange> plotRanges = new List<PlotRange>();
+        // currentZoomIndex indicates where we are at the List of plotRanges.
+        // If currentZoomIndex = plotRanges.Count-1, i.e. currently at the last zoom, then new zooming will add new entry to List plotRanges
+        // If currenZoomIndex is anything smaller, then new zooming will erase the following plotRanges and create new item
+        private int currentZoomIndex;
 
         // Constructor
         public PlotWindow(DateTime startDateTime, DateTime endDateTime, string[] selectedTags, string[] selectedFiles, int interval = 1, int resolution = 500)
@@ -202,7 +261,9 @@ namespace DataExtractor
             DateTimeStrs = PickDates(extractedData.DateTimes, 0, extractedData.pointCount - 1, Resolution);
             InitializeComponent();
             DataContext = this;
-            
+            // Record the zooming history
+            plotRanges.Add(new PlotRange(StartDateTime, EndDateTime, YMin, YMax));
+            currentZoomIndex = 0;
 
         }
 
@@ -344,9 +405,56 @@ namespace DataExtractor
         }
 
         // write the current plot rage into the plotRanges list
-        private void RecordRange() => plotRanges.Add(new PlotRange(StartDateTime, EndDateTime, YMin, YMax));
+        // This method should be called whenever the plot rnage is changed by zooming or sizing.
+        private void RecordRange()
+        {
+            // If currentZoomIndex = plotRanges.Count-1, i.e. currently at the last zoom, then new zooming will add new entry to List plotRanges
+            // If currenZoomIndex is anything smaller, then new zooming will erase the following plotRanges and create new item
+            if (currentZoomIndex < plotRanges.Count - 1)
+                plotRanges.RemoveRange(currentZoomIndex + 1, plotRanges.Count - currentZoomIndex - 1);
+            plotRanges.Add(new PlotRange(StartDateTime, EndDateTime, YMin, YMax));
+            currentZoomIndex = plotRanges.Count-1;
+        }
 
-        // 
+        // Roll back the plot range to previous one in List plotRanges 
+        private void ZoomPrevious_Click(object sender, RoutedEventArgs e)
+            => ZoomPrevious();
+
+        // Roll back the plot range to previous in List plotRanges 
+        private void ZoomPrevious(int zoomIndex = -1)
+        {
+            // if currentZoomIndex is already 0, no need to do anything
+            if (zoomIndex == -1)
+            {
+                if (currentZoomIndex > 0)
+                    currentZoomIndex--;
+                else
+                    return;
+            }
+            else if(zoomIndex>=0 && zoomIndex < plotRanges.Count)
+            {
+                currentZoomIndex = zoomIndex;
+            }
+            startDateTime = plotRanges[currentZoomIndex].startDateTime;
+            NotifyPropertyChanged("StartDateTime");
+            EndDateTime = plotRanges[currentZoomIndex].endDateTime;
+            YMax = plotRanges[currentZoomIndex].yMax;
+            YMin = plotRanges[currentZoomIndex].yMin;
+        }
+        
+        // Roll back the plot range to previous one in List plotRanges 
+        private void ZoomNext_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentZoomIndex < plotRanges.Count-1)
+                currentZoomIndex++;
+            else
+                return;
+            startDateTime = plotRanges[currentZoomIndex].startDateTime;
+            NotifyPropertyChanged("StartDateTime");
+            EndDateTime = plotRanges[currentZoomIndex].endDateTime;
+            YMax = plotRanges[currentZoomIndex].yMax;
+            YMin = plotRanges[currentZoomIndex].yMin;
+        }
 
         // This method is called by the Set accessor of each property.  
         // The CallerMemberName attribute that is applied to the optional propertyName  
@@ -356,10 +464,7 @@ namespace DataExtractor
 
         private void CartesianChart_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            StartDateTime = extractedData.DateTimes[0];
-            EndDateTime = extractedData.DateTimes[extractedData.pointCount - 1];
-            YMin = Double.NaN;
-            YMax = Double.NaN;
+            ZoomPrevious(0);
             e.Handled = true;
         }
 
@@ -400,28 +505,55 @@ namespace DataExtractor
         {
             //RawPoint = e.GetPosition(Chart);
             //ConvertedPoint = Chart.ConvertToChartValues(RawPoint);
+            if (IsDrawing)
+            {
+                Point currentPoint = e.GetPosition(Chart);
+                double xmin = mouseDownPoint.X;
+                double xmax = currentPoint.X;
+                double ymin = currentPoint.Y;
+                double ymax = mouseDownPoint.Y;
+                // make sure min is smaller than max
+                if (xmin > xmax)
+                {
+                    double temp = xmin;
+                    xmin = xmax;
+                    xmax = temp;
+                }
+                if (ymin > ymax)
+                {
+                    double temp = ymin;
+                    ymin = ymax;
+                    ymax = temp;
+                }
+                ZoomBoxWidth = xmax - xmin;
+                ZoomBoxHeight = ymax - ymin;
+                ZoomBoxMargin = new Thickness(xmin, ymin, Chart.ActualWidth - xmax, Chart.ActualHeight - ymax);
+            }
         }
 
         private void Chart_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             mouseDownPoint = e.GetPosition(Chart);
-            isDrawing = true;
+            IsDrawing = true;
         }
 
         private void Chart_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             mouseUpPoint = e.GetPosition(Chart);
-            isDrawing = false;
+            IsDrawing = false;
+            ZoomBoxHeight = 0;
+            ZoomBoxWidth = 0;
             // If the up and down points are very close to each other, it's not zooming
             if ((mouseDownPoint.X - mouseUpPoint.X) * (mouseDownPoint.X - mouseUpPoint.X) + (mouseDownPoint.Y - mouseUpPoint.Y)* (mouseDownPoint.Y - mouseUpPoint.Y) < 100)
+                // Consider drawing the cursor here
                 return;
             mouseDownPoint = Chart.ConvertToChartValues(mouseDownPoint);
             mouseUpPoint = Chart.ConvertToChartValues(mouseUpPoint);
             // Find the coordinates for the zoom rectangular
             double xmin = mouseDownPoint.X;
             double xmax = mouseUpPoint.X;
-            double ymin = mouseDownPoint.Y;
-            double ymax = mouseUpPoint.Y;
+            double ymin = mouseUpPoint.Y;
+            double ymax = mouseDownPoint.Y;
             // make sure min is smaller than max
             if (xmin > xmax)
             {
@@ -454,15 +586,21 @@ namespace DataExtractor
                 NotifyPropertyChanged("StartDateTime");
                 EndDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
             }
+            RecordRange();
+
+        }
+
+        private void settingButton_Checked(object sender, RoutedEventArgs e)
+        {
 
         }
 
         private struct PlotRange
         {
-            DateTime startDateTime;
-            DateTime endDateTime;
-            double yMin;
-            double yMax;
+            public DateTime startDateTime;
+            public DateTime endDateTime;
+            public double yMin;
+            public double yMax;
 
             public PlotRange(DateTime startDateTime, DateTime endDateTime, double yMin, double yMax)
             {
