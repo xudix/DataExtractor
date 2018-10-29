@@ -50,7 +50,7 @@
         <TextBox x:Name="endTimeInput" Grid.Row="1" Grid.Column="4" Style="{StaticResource DateTimeTextBox}"
                  Text="{Binding EndTime, Converter={StaticResource StrTimeConverter}, Mode=TwoWay}"></TextBox>
         <Label Grid.Row="2" HorizontalAlignment="Left">Tags</Label>
-        <Button x:Name="pickTagBottom" Grid.Row="2" Grid.Column="1" Margin="0,2" Click="PickTagBottom_Click">
+        <Button x:Name="pickTagBottom" Grid.Row="2" Grid.Column="1" Margin="0,2" Click="PickTagBottom_fromDataFile_Click">
             Pick Tags
         </Button>
         <Label Grid.Row="2" Grid.Column="3" HorizontalAlignment="Left">Data Files</Label>

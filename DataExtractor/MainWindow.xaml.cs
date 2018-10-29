@@ -101,6 +101,53 @@ namespace DataExtractor
             }
         }
 
+        private void PickTagBottom_fromDataFile_Click(object sender, RoutedEventArgs e)
+        {
+            string tagList = String.Empty;
+            string[] tagArray;
+            // The dialog to select Tag List
+            OpenFileDialog dialog = new OpenFileDialog
+            {
+                Title = "Select Data File",
+                DefaultExt = ".csv",
+                Filter = "CSV files (.csv)|*.csv|Text documents (.txt)|*.txt|All Files|*.*",
+            };
+            if (!String.IsNullOrEmpty(filePath)) dialog.InitialDirectory = filePath;
+
+            // If the file is selected, record the file path and open the file
+            if (dialog.ShowDialog(this) == true)
+            {
+                filePath = Path.GetDirectoryName(dialog.FileName);
+                try
+                {
+                    using (StreamReader sr = new StreamReader(new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                    {
+                        // Read the first line from the file. 
+                        tagList = sr.ReadLine();
+                        // Remove the "Date", "Time", and "Millitm" fields from the first line
+                        tagList = Regex.Replace(tagList, @"^(;?date)?[\W_]*time[\W_]*(millitm)?", "", RegexOptions.IgnoreCase);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error: Could not read tag file from disk. Original error: " + ex.Message);
+                }
+                if (!String.IsNullOrEmpty(tagList))
+                {
+                    char[] separators = { ' ', ',', '\t', '\n', '\r', ';' };
+                    tagArray = tagList.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+                    PickTagWindow pickTagDialog = new PickTagWindow(tagArray);
+                    // The ShowDialog() method of Window class will show the window and disable the mian window.
+                    if (pickTagDialog.ShowDialog() == true && pickTagDialog.SelectedTags != null)
+                    {
+                        SelectedTags = (SelectedTags != null) ? SelectedTags.Concat(pickTagDialog.SelectedTags).ToArray() : pickTagDialog.SelectedTags;
+                    }
+                }
+
+            }
+        }
+
+
         private void PickFileBottom_Click(object sender, RoutedEventArgs e)
         {
             // The dialog to select data files

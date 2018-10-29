@@ -507,34 +507,45 @@ namespace DataExtractor
             //ConvertedPoint = Chart.ConvertToChartValues(RawPoint);
             if (IsDrawing)
             {
-                Point currentPoint = e.GetPosition(Chart);
-                double xmin = mouseDownPoint.X;
-                double xmax = currentPoint.X;
-                double ymin = currentPoint.Y;
-                double ymax = mouseDownPoint.Y;
-                // make sure min is smaller than max
-                if (xmin > xmax)
+                if (e.LeftButton == MouseButtonState.Pressed)
                 {
-                    double temp = xmin;
-                    xmin = xmax;
-                    xmax = temp;
+                    Point currentPoint = e.GetPosition(Chart);
+                    double xmin = mouseDownPoint.X;
+                    double xmax = currentPoint.X;
+                    double ymin = currentPoint.Y;
+                    double ymax = mouseDownPoint.Y;
+                    // make sure min is smaller than max
+                    if (xmin > xmax)
+                    {
+                        double temp = xmin;
+                        xmin = xmax;
+                        xmax = temp;
+                    }
+                    if (ymin > ymax)
+                    {
+                        double temp = ymin;
+                        ymin = ymax;
+                        ymax = temp;
+                    }
+                    ZoomBoxWidth = xmax - xmin;
+                    ZoomBoxHeight = ymax - ymin;
+                    ZoomBoxMargin = new Thickness(xmin, ymin, Chart.ActualWidth - xmax, Chart.ActualHeight - ymax);
                 }
-                if (ymin > ymax)
+                else // If the user moved the mouse to outside the Grid, release the button, and move it back into the chart, zooming will be canceled
                 {
-                    double temp = ymin;
-                    ymin = ymax;
-                    ymax = temp;
+                    IsDrawing = false;
+                    ZoomBoxHeight = 0;
+                    ZoomBoxWidth = 0;
                 }
-                ZoomBoxWidth = xmax - xmin;
-                ZoomBoxHeight = ymax - ymin;
-                ZoomBoxMargin = new Thickness(xmin, ymin, Chart.ActualWidth - xmax, Chart.ActualHeight - ymax);
             }
-        }
-
-        private void Chart_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            mouseDownPoint = e.GetPosition(Chart);
-            IsDrawing = true;
+            else if(e.LeftButton == MouseButtonState.Pressed)
+            {
+                // Previouw MouseLeftButtonDown event handler is moved here
+                // The reason is, if the user click the mouse left button outside the chart and move the mouse inside,
+                // the program won't be able to catch it. 
+                mouseDownPoint = e.GetPosition(Chart);
+                IsDrawing = true;
+            }
         }
 
         private void Chart_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)

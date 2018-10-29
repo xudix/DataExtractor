@@ -19,7 +19,7 @@
                 <Button Click="ZoomNext_Click" Content="Next Zoom &gt;&gt;" />
             </ToolBar>
         </ToolBarTray>
-        <Grid>
+        <Grid PreviewMouseLeftButtonUp="Chart_MouseLeftButtonUp" Background="Transparent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition/>
@@ -32,11 +32,11 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
+            
             <TextBlock Text="{Binding ElementName=plotTitleInput, Path=Text}" HorizontalAlignment="Center" Grid.Column="1"></TextBlock>
             <lvc:CartesianChart x:Name="Chart" Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
-                            PreviewMouseDoubleClick="CartesianChart_MouseDoubleClick" MouseMove="Chart_MouseMove"
-                            MouseLeftButtonDown="Chart_MouseLeftButtonDown" MouseLeftButtonUp="Chart_MouseLeftButtonUp">
+                            PreviewMouseDoubleClick="CartesianChart_MouseDoubleClick" MouseMove="Chart_MouseMove">
                 <lvc:CartesianChart.AxisY>
                     <lvc:Axis Name="YAxis" Title="{Binding Text, Source={x:Reference yTitleInput}, Mode=OneWay}" Foreground="Black"  
                           MaxValue="{Binding YMax}" MinValue="{Binding YMin}">
@@ -48,8 +48,7 @@
                 </lvc:CartesianChart.AxisX>
             </lvc:CartesianChart>
             <Rectangle Grid.Column="1" Width="{Binding ZoomBoxWidth}" Height="{Binding ZoomBoxHeight}" Margin="{Binding ZoomBoxMargin}"
-                       Stroke="#FF9000FF" StrokeThickness="1" Grid.Row="1" MouseMove="Chart_MouseMove"
-                       MouseLeftButtonDown="Chart_MouseLeftButtonDown" MouseLeftButtonUp="Chart_MouseLeftButtonUp">
+                       Stroke="#FF9000FF" StrokeThickness="1" Grid.Row="1" MouseMove="Chart_MouseMove">
                 <!--Most events at the chart will have to be added for the ZoomBox rectangle. 
                 Otherwise the program may not respond to the mouseup event-->
                 <Rectangle.Style>
