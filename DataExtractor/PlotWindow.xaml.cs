@@ -63,20 +63,24 @@ namespace DataExtractor
 
         private ExtractedData extractedData;
 
-        // The PointsPerLine property corresponds to the parameter pointsPerLine in the constructor
+        // The Resolution property corresponds to the parameter resolultion in the constructor
         // It depicts the rough number of points in each of the line
-        private int pointsPerLine;
-        public int PointsPerLine
+        private int resolution;
+        public int Resolution
         {
-            get => pointsPerLine;
+            get => resolution;
             set
             {
-                if (pointsPerLine != value)
+                if (resolution != value)
                 {
-                    pointsPerLine = value;
+                    resolution = value;
                     UpdatePoints();
                 }
             }
+        }
+        public int PointsPerLine
+        {
+            get => dateTimeStrs.Length;
         }
 
         // start time, DateTime object
@@ -149,24 +153,122 @@ namespace DataExtractor
             }
         }
 
+        private Point convertedPoint;
+        public Point ConvertedPoint
+        {
+            get => convertedPoint;
+            set
+            {
+                if (convertedPoint != value)
+                {
+                    convertedPoint = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private Point rawPoint;
+        public Point RawPoint
+        {
+            get => rawPoint;
+            set
+            {
+                if (rawPoint != value)
+                {
+                    rawPoint = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        // These fields are used to support the draw-to-zoom function
+        // Click the mouse on the chart and draw a rectangular area. 
+        // The chart will zoom in to the rectangular area.
+        private Point mouseDownPoint, mouseUpPoint;
+        private bool isDrawing;
+        public bool IsDrawing
+        {
+            get => isDrawing;
+            set
+            {
+                if (isDrawing != value)
+                {
+                    isDrawing = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        // ZoomBox shows up when the user use mouse for drag to zoom
+        private double zoomBoxWidth;
+        public double ZoomBoxWidth
+        {
+            get => zoomBoxWidth;
+            set
+            {
+                if(zoomBoxWidth != value)
+                {
+                    zoomBoxWidth = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private double zoomBoxHeight;
+        public double ZoomBoxHeight
+        {
+            get => zoomBoxHeight;
+            set
+            {
+                if (zoomBoxHeight != value)
+                {
+                    zoomBoxHeight = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private Thickness zoomBoxMargin;
+        public Thickness ZoomBoxMargin
+        {
+            get => zoomBoxMargin;
+            set
+            {
+                if (zoomBoxMargin != value)
+                {
+                    zoomBoxMargin = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        // The List of PlotRange will keep track of all previous zooming activities. Thus, zooming can be reversed
+        private List<PlotRange> plotRanges = new List<PlotRange>();
+        // currentZoomIndex indicates where we are at the List of plotRanges.
+        // If currentZoomIndex = plotRanges.Count-1, i.e. currently at the last zoom, then new zooming will add new entry to List plotRanges
+        // If currenZoomIndex is anything smaller, then new zooming will erase the following plotRanges and create new item
+        private int currentZoomIndex;
+
         // Constructor
-        public PlotWindow(DateTime startDateTime, DateTime endDateTime, string[] selectedTags, string[] selectedFiles, int interval = 1, int pointsPerLine = 500)
+        public PlotWindow(DateTime startDateTime, DateTime endDateTime, string[] selectedTags, string[] selectedFiles, int interval = 1, int resolution = 500)
         {
             
             extractedData = new ExtractedData(startDateTime, endDateTime, selectedTags, selectedFiles, interval);
             this.startDateTime = extractedData.DateTimes[0];
             this.endDateTime = extractedData.DateTimes[extractedData.pointCount-1];
-            this.pointsPerLine = pointsPerLine;
-            PointsToPlot = PickPoints(extractedData.RawData, selectedTags, 0, extractedData.pointCount-1, PointsPerLine);
-            DateTimeStrs = PickDates(extractedData.DateTimes, 0, extractedData.pointCount - 1, PointsPerLine);
+            this.resolution = resolution;
+            PointsToPlot = PickPoints(extractedData.RawData, selectedTags, 0, extractedData.pointCount-1, Resolution);
+            DateTimeStrs = PickDates(extractedData.DateTimes, 0, extractedData.pointCount - 1, Resolution);
             InitializeComponent();
             DataContext = this;
-
+            // Record the zooming history
+            plotRanges.Add(new PlotRange(StartDateTime, EndDateTime, YMin, YMax));
+            currentZoomIndex = 0;
 
         }
 
-        // Create SeriesCollection from a List of float[]. Each LineSeries in SeriesCollection contains about pointsPerLine points.
-        private static SeriesCollection PickPoints(IList<float[]> rawData, string[] tagList, int startIndex, int endIndex, int pointsPerLine)
+        // Create SeriesCollection from a List of float[]. Each LineSeries in SeriesCollection contains about resolution points.
+        private static SeriesCollection PickPoints(IList<float[]> rawData, string[] tagList, int startIndex, int endIndex, int resolution)
         {
             // If there's no array in rawData, nothing to return
             if (rawData.Count == 0)
@@ -178,7 +280,7 @@ namespace DataExtractor
             // The local variable for storing the points to be plotted
             float[] temp;            
             // Figure out the indexes needed to be taken
-            int interval = (endIndex - startIndex) / (pointsPerLine - 1);
+            int interval = (endIndex - startIndex) / (resolution - 1);
             if (interval < 1)
                 interval = 1;
             int pointCount = (endIndex - startIndex) / interval + 1;
@@ -212,9 +314,9 @@ namespace DataExtractor
         }
 
 
-        // Create SeriesCollection from a List of float[]. Each LineSeries in SeriesCollection contains about pointsPerLine points.
+        // Create SeriesCollection from a List of float[]. Each LineSeries in SeriesCollection contains about resolution points.
         // This overload takes the whole ExtractedData object and start/end datetime as the input.
-        private static SeriesCollection PickPoints(ExtractedData extractedData, DateTime startDateTime, DateTime endDateTime, int pointsPerLine)
+        private static SeriesCollection PickPoints(ExtractedData extractedData, DateTime startDateTime, DateTime endDateTime, int resolution)
         {
             int startIndex=0, endIndex;
             if (startDateTime > endDateTime)
@@ -235,12 +337,12 @@ namespace DataExtractor
                 endIndex++;
             endIndex--;
 
-            return PickPoints(extractedData.RawData, extractedData.Tags, startIndex, endIndex, pointsPerLine);
+            return PickPoints(extractedData.RawData, extractedData.Tags, startIndex, endIndex, resolution);
         }
 
 
-        // Create an array of string from an array of DateTime. The new array contains about pointsPerLine points.
-        private static string[] PickDates(DateTime[] rawData, int startIndex, int endIndex, int pointsPerLine, string format = "M/d H:mm")
+        // Create an array of string from an array of DateTime. The new array contains about resolution points.
+        private static string[] PickDates(DateTime[] rawData, int startIndex, int endIndex, int resolution, string format = "M/d H:mm")
         {
             // If there's no array in rawData, nothing to return
             if (rawData.Length == 0)
@@ -250,7 +352,7 @@ namespace DataExtractor
             if (endIndex == -1)
                 endIndex = rawData.Length - 1;
             // Figure out the indexes needed to be taken
-            int interval = (endIndex - startIndex) / (pointsPerLine - 1);
+            int interval = (endIndex - startIndex) / (resolution - 1);
             if (interval < 1)
                 interval = 1;
             int pointCount = (endIndex - startIndex) / interval + 1;
@@ -270,7 +372,7 @@ namespace DataExtractor
             return result;
         }
 
-        private static string[] PickDates(DateTime[] rawData, DateTime startDateTime, DateTime endDateTime, int pointsPerLine, string format = "M/d H:mm")
+        private static string[] PickDates(DateTime[] rawData, DateTime startDateTime, DateTime endDateTime, int resolution, string format = "M/d H:mm")
         {
             int startIndex = 0, endIndex;
             if (startDateTime > endDateTime)
@@ -291,15 +393,67 @@ namespace DataExtractor
                 endIndex++;
             endIndex--;
 
-            return PickDates(rawData, startIndex, endIndex, pointsPerLine, format);
+            return PickDates(rawData, startIndex, endIndex, resolution, format);
         }
             
 
-        // If the start/end datetime or PointsPerLine is changed, will regenerate the PoitnsToPlot collection as well as the DateTimeStrs
+        // If the start/end datetime or Resolution is changed, will regenerate the PoitnsToPlot collection as well as the DateTimeStrs
         private void UpdatePoints()
         {
-            PointsToPlot = PickPoints(extractedData, StartDateTime, EndDateTime, PointsPerLine);
-            DateTimeStrs = PickDates(extractedData.DateTimes, StartDateTime, EndDateTime, PointsPerLine);
+            PointsToPlot = PickPoints(extractedData, StartDateTime, EndDateTime, Resolution);
+            DateTimeStrs = PickDates(extractedData.DateTimes, StartDateTime, EndDateTime, Resolution);
+        }
+
+        // write the current plot rage into the plotRanges list
+        // This method should be called whenever the plot rnage is changed by zooming or sizing.
+        private void RecordRange()
+        {
+            // If currentZoomIndex = plotRanges.Count-1, i.e. currently at the last zoom, then new zooming will add new entry to List plotRanges
+            // If currenZoomIndex is anything smaller, then new zooming will erase the following plotRanges and create new item
+            if (currentZoomIndex < plotRanges.Count - 1)
+                plotRanges.RemoveRange(currentZoomIndex + 1, plotRanges.Count - currentZoomIndex - 1);
+            plotRanges.Add(new PlotRange(StartDateTime, EndDateTime, YMin, YMax));
+            currentZoomIndex = plotRanges.Count-1;
+        }
+
+        // Roll back the plot range to previous one in List plotRanges 
+        private void ZoomPrevious_Click(object sender, RoutedEventArgs e)
+            => ZoomPrevious();
+
+        // Roll back the plot range to previous in List plotRanges 
+        private void ZoomPrevious(int zoomIndex = -1)
+        {
+            // if currentZoomIndex is already 0, no need to do anything
+            if (zoomIndex == -1)
+            {
+                if (currentZoomIndex > 0)
+                    currentZoomIndex--;
+                else
+                    return;
+            }
+            else if(zoomIndex>=0 && zoomIndex < plotRanges.Count)
+            {
+                currentZoomIndex = zoomIndex;
+            }
+            startDateTime = plotRanges[currentZoomIndex].startDateTime;
+            NotifyPropertyChanged("StartDateTime");
+            EndDateTime = plotRanges[currentZoomIndex].endDateTime;
+            YMax = plotRanges[currentZoomIndex].yMax;
+            YMin = plotRanges[currentZoomIndex].yMin;
+        }
+        
+        // Roll back the plot range to previous one in List plotRanges 
+        private void ZoomNext_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentZoomIndex < plotRanges.Count-1)
+                currentZoomIndex++;
+            else
+                return;
+            startDateTime = plotRanges[currentZoomIndex].startDateTime;
+            NotifyPropertyChanged("StartDateTime");
+            EndDateTime = plotRanges[currentZoomIndex].endDateTime;
+            YMax = plotRanges[currentZoomIndex].yMax;
+            YMin = plotRanges[currentZoomIndex].yMin;
         }
 
         // This method is called by the Set accessor of each property.  
@@ -310,10 +464,8 @@ namespace DataExtractor
 
         private void CartesianChart_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            XAxis.MinValue = Double.NaN;
-            XAxis.MaxValue = Double.NaN;
-            YAxis.MinValue = Double.NaN;
-            YAxis.MaxValue = Double.NaN;
+            ZoomPrevious(0);
+            e.Handled = true;
         }
 
         // Reset the min value of X axis to earliest datetime
@@ -325,7 +477,7 @@ namespace DataExtractor
         // Reset the max value of X axis to earliest datetime
         private void XAxisMaxReset_Click(object sender, RoutedEventArgs e)
         {
-            StartDateTime = extractedData.DateTimes[extractedData.pointCount - 1];
+            EndDateTime = extractedData.DateTimes[extractedData.pointCount - 1];
         }
 
         // Reset the min value of Y axis to earliest datetime
@@ -347,6 +499,116 @@ namespace DataExtractor
         private void ExportButton2_Click(object sender, RoutedEventArgs e)
         {
             extractedData.WriteToFile_PipeLine(StartDateTime, EndDateTime, this, "csv");
+        }
+
+        private void Chart_MouseMove(object sender, MouseEventArgs e)
+        {
+            //RawPoint = e.GetPosition(Chart);
+            //ConvertedPoint = Chart.ConvertToChartValues(RawPoint);
+            if (IsDrawing)
+            {
+                Point currentPoint = e.GetPosition(Chart);
+                double xmin = mouseDownPoint.X;
+                double xmax = currentPoint.X;
+                double ymin = currentPoint.Y;
+                double ymax = mouseDownPoint.Y;
+                // make sure min is smaller than max
+                if (xmin > xmax)
+                {
+                    double temp = xmin;
+                    xmin = xmax;
+                    xmax = temp;
+                }
+                if (ymin > ymax)
+                {
+                    double temp = ymin;
+                    ymin = ymax;
+                    ymax = temp;
+                }
+                ZoomBoxWidth = xmax - xmin;
+                ZoomBoxHeight = ymax - ymin;
+                ZoomBoxMargin = new Thickness(xmin, ymin, Chart.ActualWidth - xmax, Chart.ActualHeight - ymax);
+            }
+        }
+
+        private void Chart_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            mouseDownPoint = e.GetPosition(Chart);
+            IsDrawing = true;
+        }
+
+        private void Chart_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            mouseUpPoint = e.GetPosition(Chart);
+            IsDrawing = false;
+            ZoomBoxHeight = 0;
+            ZoomBoxWidth = 0;
+            // If the up and down points are very close to each other, it's not zooming
+            if ((mouseDownPoint.X - mouseUpPoint.X) * (mouseDownPoint.X - mouseUpPoint.X) + (mouseDownPoint.Y - mouseUpPoint.Y)* (mouseDownPoint.Y - mouseUpPoint.Y) < 100)
+                // Consider drawing the cursor here
+                return;
+            mouseDownPoint = Chart.ConvertToChartValues(mouseDownPoint);
+            mouseUpPoint = Chart.ConvertToChartValues(mouseUpPoint);
+            // Find the coordinates for the zoom rectangular
+            double xmin = mouseDownPoint.X;
+            double xmax = mouseUpPoint.X;
+            double ymin = mouseUpPoint.Y;
+            double ymax = mouseDownPoint.Y;
+            // make sure min is smaller than max
+            if (xmin > xmax)
+            {
+                double temp = xmin;
+                xmin = xmax;
+                xmax = temp;
+            }
+            if (ymin > ymax)
+            {
+                double temp = ymin;
+                ymin = ymax;
+                ymax = temp;
+            }
+            // If the change is too small, the user is probably not intended to zoom
+            if ((ymax - ymin) / (YAxis.ActualMaxValue - YAxis.ActualMinValue) > 0.02)
+            {
+                YMax = ymax;
+                YMin = ymin;
+            }
+            // If the change is too small, the user is probably not intended to zoom
+            if ((xmax - xmin) / PointsPerLine > 0.02)
+            {
+                int startIndex = (int)xmin;
+                if (startIndex < 0) startIndex = 0;
+                int endIndex = (int)Math.Ceiling(xmax);
+                if (endIndex >= PointsPerLine) endIndex = PointsPerLine - 1;
+                // Here we are changing the private field "startDateTime" instead of the property "StartDateTime"
+                // because if we chagne the property, UpdatePoints() method will be invoked and DateTimeStrs will be changed.
+                startDateTime = ExtractedData.ParseDateTime(DateTimeStrs[startIndex]);
+                NotifyPropertyChanged("StartDateTime");
+                EndDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
+            }
+            RecordRange();
+
+        }
+
+        private void settingButton_Checked(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private struct PlotRange
+        {
+            public DateTime startDateTime;
+            public DateTime endDateTime;
+            public double yMin;
+            public double yMax;
+
+            public PlotRange(DateTime startDateTime, DateTime endDateTime, double yMin, double yMax)
+            {
+                this.startDateTime = startDateTime;
+                this.endDateTime = endDateTime;
+                this.yMax = yMax;
+                this.yMin = yMin;
+            }
         }
     }
 
