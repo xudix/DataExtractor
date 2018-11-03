@@ -6,10 +6,14 @@
         xmlns:local="clr-namespace:DataExtractor"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
+        Name="plotWindow"
         Title="Plot" Height="450" Width="900">
     <Window.Resources>
         <local:StringDateTimeConverter x:Key="StrDateTimeConverter"/>
         <local:StrDoubleConverter x:Key="StrDoubleConverter"/>
+        <local:LegendWithValues x:Key="LegendWithValues"
+            Orientation="Vertical" Values="{Binding Path=CursorValues, Source={x:Reference Name=plotWindow}}"/>
+        <local:CursorHeightCalc x:Key="CursorHeightCalc"/>
     </Window.Resources>
     <DockPanel>
         <ToolBarTray DockPanel.Dock="Top">
@@ -37,6 +41,9 @@
             <lvc:CartesianChart x:Name="Chart" Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
                             PreviewMouseDoubleClick="CartesianChart_MouseDoubleClick" MouseMove="Chart_MouseMove">
+                <lvc:CartesianChart.ChartLegend>
+                    <StaticResource ResourceKey="LegendWithValues"/>
+                </lvc:CartesianChart.ChartLegend>
                 <lvc:CartesianChart.AxisY>
                     <lvc:Axis Name="YAxis" Title="{Binding Text, Source={x:Reference yTitleInput}, Mode=OneWay}" Foreground="Black"  
                           MaxValue="{Binding YMax}" MinValue="{Binding YMin}">
@@ -47,7 +54,7 @@
                     <lvc:Axis Name="XAxis" Title="{Binding Text, Source={x:Reference xTitleInput}, Mode=OneWay}" Foreground="Black" Labels="{Binding DateTimeStrs}" ></lvc:Axis>
                 </lvc:CartesianChart.AxisX>
             </lvc:CartesianChart>
-            <Rectangle Grid.Column="1" Width="{Binding ZoomBoxWidth}" Height="{Binding ZoomBoxHeight}" Margin="{Binding ZoomBoxMargin}"
+            <Rectangle x:Name="ZoomBox" Grid.Column="1" Width="{Binding ZoomBoxWidth}" Height="{Binding ZoomBoxHeight}" Margin="{Binding ZoomBoxMargin}"
                        Stroke="#FF9000FF" StrokeThickness="1" Grid.Row="1" MouseMove="Chart_MouseMove">
                 <!--Most events at the chart will have to be added for the ZoomBox rectangle. 
                 Otherwise the program may not respond to the mouseup event-->
@@ -55,17 +62,40 @@
                     <Style TargetType="Rectangle">
                         <Setter Property="Visibility" Value="Hidden"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsDrawing}" Value="True">
+                            <DataTrigger Binding="{Binding IsZoomDrawing}" Value="True">
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Rectangle.Style>
             </Rectangle>
+            
+            <Line x:Name="CursorLine1" Grid.Column="1" Width="10" Margin="{Binding Cursor1Margin}"
+                       Stroke="Red" StrokeThickness="1" Grid.Row="1" MouseMove="Chart_MouseMove"
+                       >
+                <Line.Height>
+                    <MultiBinding Converter="{StaticResource CursorHeightCalc}">
+                        <Binding ElementName="Chart" Path="ActualHeight"/>
+                        <Binding ElementName="XAxis" Path="ActualHeight"/>
+                    </MultiBinding>
+                </Line.Height>
+                <!--Most events at the chart will have to be added for the ZoomBox rectangle. 
+                Otherwise the program may not respond to the mouseup event-->
+                <Line.Style>
+                    <Style TargetType="Line">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsZoomDrawing}" Value="True">
+                                <Setter Property="Visibility" Value="Hidden"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Line.Style>
+            </Line>
             <!--TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ZoomBoxWidth}"/>
             <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ZoomBoxHeight}"/-->
             <ToggleButton Name="settingButton" 
-                Grid.Column="2" Checked="settingButton_Checked" HorizontalContentAlignment="Center" IsChecked="True">
+                Grid.Column="2" HorizontalContentAlignment="Center" IsChecked="True">
                 <ToggleButton.Style>
                     <Style TargetType="ToggleButton">
                         <Setter Property="Content" Value="Options&gt;&gt; "/>

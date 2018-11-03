@@ -32,7 +32,7 @@ namespace DataExtractor
     // date selector for start and end dates
     // Rewrite the ControlTemplate of date input to include a interactive date picker
     // Drag-and-drop file import
-    // Reading tags directly from data file
+    // (DONE) Reading tags directly from data file
     // Scrollable time axis (see https://lvcharts.net/App/examples/v1/wpf/Scrollable)
     // Hide certain lines when clicked
 

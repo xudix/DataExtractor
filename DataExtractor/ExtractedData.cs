@@ -484,6 +484,7 @@ namespace DataExtractor
             {
                 using (StreamReader sr = new StreamReader(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                 {
+                    Console.WriteLine("Processing data file " + record.fileName);
                     switch (record.fileType.ToLower())
                     {
                         case "csv":
@@ -629,8 +630,9 @@ namespace DataExtractor
                                     nPoints *= 2;
                                     for (i = 0; i < indexOfTags.Count; i++)
                                     {
+                                        Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
                                         float[] temp = new float[nPoints];
-                                        RawData[i].CopyTo(temp, pointCount);
+                                        Array.Copy(RawData[i], temp, pointCount);
                                         RawData[i] = temp;
                                     }
                                 }
@@ -663,8 +665,9 @@ namespace DataExtractor
                                     nPoints *= 2;
                                     for (i = 0; i < indexOfTags.Count; i++)
                                     {
+                                        Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
                                         float[] temp = new float[nPoints];
-                                        RawData[i].CopyTo(temp, pointCount);
+                                        Array.Copy(RawData[i], temp, pointCount);
                                         RawData[i] = temp;
                                     }
                                 }
@@ -690,10 +693,12 @@ namespace DataExtractor
             // if for some reason the size of the array is larger than actual number of points
             if (pointCount < nPoints) 
             {
-                // double the size of the array
+                Console.WriteLine("Triming array from {0} to {1} elements", nPoints, pointCount);
+                // shink the size of the array
                 nPoints = pointCount;
                 for (i = 0; i < tagList.Length  ; i++)
                 {
+                    
                     float[] temp = new float[nPoints];
                     Array.Copy(RawData[i], temp, pointCount);
                     RawData[i] = temp;

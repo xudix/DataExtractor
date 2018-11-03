@@ -3,17 +3,11 @@ using LiveCharts.Wpf;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Globalization;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace DataExtractor
 {
@@ -185,15 +179,15 @@ namespace DataExtractor
         // Click the mouse on the chart and draw a rectangular area. 
         // The chart will zoom in to the rectangular area.
         private Point mouseDownPoint, mouseUpPoint;
-        private bool isDrawing;
-        public bool IsDrawing
+        private bool isZoomDrawing;
+        public bool IsZoomDrawing
         {
-            get => isDrawing;
+            get => isZoomDrawing;
             set
             {
-                if (isDrawing != value)
+                if (isZoomDrawing != value)
                 {
-                    isDrawing = value;
+                    isZoomDrawing = value;
                     NotifyPropertyChanged();
                 }
             }
@@ -242,6 +236,39 @@ namespace DataExtractor
             }
         }
 
+        // CursorValues is a list of float that represents the values of all tags at a time
+        // This property is shown in the Legend with Values
+        private float[] cursorValues;
+        public float[] CursorValues
+        {
+            get => cursorValues;
+            set
+            {
+                if (cursorValues != value)
+                {
+                    cursorValues = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+        
+        // Property for the location of CursorLine1
+        // Cursor is a rectangular with Width=1
+        private Thickness cursor1Margin;
+        public Thickness Cursor1Margin
+        {
+            get => cursor1Margin;
+            set
+            {
+                if (cursor1Margin != value)
+                {
+                    cursor1Margin = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+
         // The List of PlotRange will keep track of all previous zooming activities. Thus, zooming can be reversed
         private List<PlotRange> plotRanges = new List<PlotRange>();
         // currentZoomIndex indicates where we are at the List of plotRanges.
@@ -259,6 +286,7 @@ namespace DataExtractor
             this.resolution = resolution;
             PointsToPlot = PickPoints(extractedData.RawData, selectedTags, 0, extractedData.pointCount-1, Resolution);
             DateTimeStrs = PickDates(extractedData.DateTimes, 0, extractedData.pointCount - 1, Resolution);
+            cursorValues = new float[extractedData.Tags.Length];
             InitializeComponent();
             DataContext = this;
             // Record the zooming history
@@ -505,7 +533,10 @@ namespace DataExtractor
         {
             //RawPoint = e.GetPosition(Chart);
             //ConvertedPoint = Chart.ConvertToChartValues(RawPoint);
-            if (IsDrawing)
+
+            // If the mouse is moving in the chart, allow the following behavior:
+            // IsZoomDrawing means the mouse left button was pressed. Performing zoom
+            if (IsZoomDrawing)
             {
                 if (e.LeftButton == MouseButtonState.Pressed)
                 {
@@ -533,77 +564,117 @@ namespace DataExtractor
                 }
                 else // If the user moved the mouse to outside the Grid, release the button, and move it back into the chart, zooming will be canceled
                 {
-                    IsDrawing = false;
+                    IsZoomDrawing = false;
                     ZoomBoxHeight = 0;
                     ZoomBoxWidth = 0;
                 }
             }
-            else if(e.LeftButton == MouseButtonState.Pressed)
+            else 
             {
-                // Previouw MouseLeftButtonDown event handler is moved here
-                // The reason is, if the user click the mouse left button outside the chart and move the mouse inside,
-                // the program won't be able to catch it. 
-                mouseDownPoint = e.GetPosition(Chart);
-                IsDrawing = true;
+                if (e.LeftButton == MouseButtonState.Pressed)
+                {
+                    // If IsZoomDrawing is not set but mouse left button is pressed, then the user probably pressed the button outside the chart and moved it inside.
+                    // Will start zooming
+                    // Previousw MouseLeftButtonDown event handler is moved here
+                    // The reason is, if the user click the mouse left button outside the chart and move the mouse inside,
+                    // the program won't be able to catch it. 
+                    mouseDownPoint = e.GetPosition(Chart);
+                    IsZoomDrawing = true;
+                }
+                else
+                {
+                    // Simply moving the mouse in the chart. Will move the cursor
+                    double position = e.GetPosition(Chart).X;
+                    Cursor1Margin = new Thickness(position, 0, Chart.ActualWidth - position - 1, XAxis.ActualHeight);
+                    UpdateLegendValues(Chart.ConvertToChartValues(e.GetPosition(Chart)));
+                }
+                    
             }
         }
 
         private void Chart_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            mouseUpPoint = e.GetPosition(Chart);
-            IsDrawing = false;
-            ZoomBoxHeight = 0;
-            ZoomBoxWidth = 0;
-            // If the up and down points are very close to each other, it's not zooming
-            if ((mouseDownPoint.X - mouseUpPoint.X) * (mouseDownPoint.X - mouseUpPoint.X) + (mouseDownPoint.Y - mouseUpPoint.Y)* (mouseDownPoint.Y - mouseUpPoint.Y) < 100)
-                // Consider drawing the cursor here
-                return;
-            mouseDownPoint = Chart.ConvertToChartValues(mouseDownPoint);
-            mouseUpPoint = Chart.ConvertToChartValues(mouseUpPoint);
-            // Find the coordinates for the zoom rectangular
-            double xmin = mouseDownPoint.X;
-            double xmax = mouseUpPoint.X;
-            double ymin = mouseUpPoint.Y;
-            double ymax = mouseDownPoint.Y;
-            // make sure min is smaller than max
-            if (xmin > xmax)
+            if (IsZoomDrawing)
             {
-                double temp = xmin;
-                xmin = xmax;
-                xmax = temp;
-            }
-            if (ymin > ymax)
-            {
-                double temp = ymin;
-                ymin = ymax;
-                ymax = temp;
-            }
-            // If the change is too small, the user is probably not intended to zoom
-            if ((ymax - ymin) / (YAxis.ActualMaxValue - YAxis.ActualMinValue) > 0.02)
-            {
-                YMax = ymax;
-                YMin = ymin;
-            }
-            // If the change is too small, the user is probably not intended to zoom
-            if ((xmax - xmin) / PointsPerLine > 0.02)
-            {
-                int startIndex = (int)xmin;
-                if (startIndex < 0) startIndex = 0;
-                int endIndex = (int)Math.Ceiling(xmax);
-                if (endIndex >= PointsPerLine) endIndex = PointsPerLine - 1;
-                // Here we are changing the private field "startDateTime" instead of the property "StartDateTime"
-                // because if we chagne the property, UpdatePoints() method will be invoked and DateTimeStrs will be changed.
-                startDateTime = ExtractedData.ParseDateTime(DateTimeStrs[startIndex]);
-                NotifyPropertyChanged("StartDateTime");
-                EndDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
-            }
-            RecordRange();
+                mouseUpPoint = e.GetPosition(Chart);
+                IsZoomDrawing = false;
+                ZoomBoxHeight = 0;
+                ZoomBoxWidth = 0;
+                // If the up and down points are very close to each other, it's not zooming
+                if ((mouseDownPoint.X - mouseUpPoint.X) * (mouseDownPoint.X - mouseUpPoint.X) + (mouseDownPoint.Y - mouseUpPoint.Y) * (mouseDownPoint.Y - mouseUpPoint.Y) < 100)
+                    return;
 
+                mouseDownPoint = Chart.ConvertToChartValues(mouseDownPoint);
+                mouseUpPoint = Chart.ConvertToChartValues(mouseUpPoint);
+                // Find the coordinates for the zoom rectangular
+                double xmin = mouseDownPoint.X;
+                double xmax = mouseUpPoint.X;
+                double ymin = mouseUpPoint.Y;
+                double ymax = mouseDownPoint.Y;
+                // make sure min is smaller than max
+                if (xmin > xmax)
+                {
+                    double temp = xmin;
+                    xmin = xmax;
+                    xmax = temp;
+                }
+                if (ymin > ymax)
+                {
+                    double temp = ymin;
+                    ymin = ymax;
+                    ymax = temp;
+                }
+                // If the change is too small, the user is probably not intended to zoom
+                if ((ymax - ymin) / (YAxis.ActualMaxValue - YAxis.ActualMinValue) > 0.02)
+                {
+                    YMax = ymax;
+                    YMin = ymin;
+                }
+                // If the change is too small, the user is probably not intended to zoom
+                if ((xmax - xmin) / PointsPerLine > 0.02)
+                {
+                    int startIndex = (int)xmin;
+                    if (startIndex < 0) startIndex = 0;
+                    int endIndex = (int)Math.Ceiling(xmax);
+                    if (endIndex >= PointsPerLine) endIndex = PointsPerLine - 1;
+                    // Here we are changing the private field "startDateTime" instead of the property "StartDateTime"
+                    // because if we chagne the property, UpdatePoints() method will be invoked and DateTimeStrs will be changed.
+                    startDateTime = ExtractedData.ParseDateTime(DateTimeStrs[startIndex]);
+                    NotifyPropertyChanged("StartDateTime");
+                    EndDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
+                }
+                RecordRange();
+            }
+            else
+            {
+                // Not zooming. simply clicking
+                //Will update the values shown in the legend
+                
+
+            }
         }
 
-        private void settingButton_Checked(object sender, RoutedEventArgs e)
+        // update the tag values based on the X axis positionin the chart
+        // chartValue is the position of the point
+        // typically, it shoule come from: chartValues = Chart.ConvertToChartValues(e.GetPosition(Chart))
+        // where e is a MouseEventArg
+        private void UpdateLegendValues(Point chartValues)
         {
-
+            
+            int valueIndex = (int)chartValues.X;
+            if (valueIndex >= 0 && valueIndex < PointsPerLine)
+            {
+                // If we change the elements of CursorValues one by one, the setter will not be called, and NotifyPropertyChanged will not be fired
+                // In addition, the DependencyProperty in LegendWith Values will be changed but the PropertyChangedCallback will not be triggered
+                // This is probably because the array object (reference to the array) is never chagned. 
+                // Assigning a new array to it will trigger the PropertyChangedCallback
+                float[] temp = new float[extractedData.Tags.Length];
+                for (int i = 0; i < PointsToPlot.Count; i++)
+                {
+                    temp[i] = (float)PointsToPlot[i].Values[valueIndex];
+                }
+                CursorValues = temp;
+            }
         }
 
         private struct PlotRange
@@ -668,6 +739,21 @@ namespace DataExtractor
             {
                 return Double.NaN;
             }
+        }
+    }
+
+    // Calculate the height of the cursor line based on the height of the Chart and height of the XAxis
+    // The cursor height is the difference between the Chart.ActualHeight and XAxis.ActualHeight
+    public class CursorHeightCalc: IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            return (double)values[0] - (double)values[1];
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 
