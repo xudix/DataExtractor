@@ -12,7 +12,8 @@
         <local:StringDateTimeConverter x:Key="StrDateTimeConverter"/>
         <local:StrDoubleConverter x:Key="StrDoubleConverter"/>
         <local:LegendWithValues x:Key="LegendWithValues"
-            Orientation="Vertical" Values="{Binding Path=CursorValues, Source={x:Reference Name=plotWindow}}"/>
+            Orientation="Vertical" Values="{Binding Path=Cursor1Values, Source={x:Reference Name=plotWindow}}" 
+            XValue ="{Binding Cursor1Time, Source={x:Reference Name=plotWindow}}"/>
         <local:CursorHeightCalc x:Key="CursorHeightCalc"/>
     </Window.Resources>
     <DockPanel>
@@ -23,7 +24,8 @@
                 <Button Click="ZoomNext_Click" Content="Next Zoom &gt;&gt;" />
             </ToolBar>
         </ToolBarTray>
-        <Grid PreviewMouseLeftButtonUp="Chart_MouseLeftButtonUp" Background="Transparent">
+        
+        <Grid MouseLeftButtonUp="Chart_MouseLeftButtonUp" Background="Transparent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition/>
@@ -37,10 +39,12 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             
-            <TextBlock Text="{Binding ElementName=plotTitleInput, Path=Text}" HorizontalAlignment="Center" Grid.Column="1"></TextBlock>
+            <TextBlock Text="{Binding ElementName=plotTitleInput, Path=Text}" Grid.Column="1" TextAlignment="Center"
+                       MouseMove="Chart_MouseMove" Background="Transparent"/>
+            <ContentControl Grid.Column="1" Grid.Row="1" MouseMove="Chart_MouseMove" Background="Transparent" />
             <lvc:CartesianChart x:Name="Chart" Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
-                            PreviewMouseDoubleClick="CartesianChart_MouseDoubleClick" MouseMove="Chart_MouseMove">
+                            MouseMove="Chart_MouseMove" Background="Transparent">
                 <lvc:CartesianChart.ChartLegend>
                     <StaticResource ResourceKey="LegendWithValues"/>
                 </lvc:CartesianChart.ChartLegend>
@@ -69,16 +73,16 @@
                     </Style>
                 </Rectangle.Style>
             </Rectangle>
-            
-            <Line x:Name="CursorLine1" Grid.Column="1" Width="10" Margin="{Binding Cursor1Margin}"
-                       Stroke="Red" StrokeThickness="1" Grid.Row="1" MouseMove="Chart_MouseMove"
+            <ContentControl Grid.Column="1" Grid.Row="1" PreviewMouseDoubleClick="CartesianChart_MouseDoubleClick">
+                <Line x:Name="CursorLine1" Grid.Column="1" Grid.Row="1" 
+                       Stroke="Red" StrokeThickness="1" MouseMove="Chart_MouseMove" X1="{Binding Cursor1X}" X2="{Binding Cursor1X}"
                        >
-                <Line.Height>
+                <Line.Y2>
                     <MultiBinding Converter="{StaticResource CursorHeightCalc}">
                         <Binding ElementName="Chart" Path="ActualHeight"/>
                         <Binding ElementName="XAxis" Path="ActualHeight"/>
                     </MultiBinding>
-                </Line.Height>
+                </Line.Y2>
                 <!--Most events at the chart will have to be added for the ZoomBox rectangle. 
                 Otherwise the program may not respond to the mouseup event-->
                 <Line.Style>
@@ -92,6 +96,7 @@
                     </Style>
                 </Line.Style>
             </Line>
+            </ContentControl>
             <!--TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ZoomBoxWidth}"/>
             <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ZoomBoxHeight}"/-->
             <ToggleButton Name="settingButton" 
@@ -101,7 +106,7 @@
                         <Setter Property="Content" Value="Options&gt;&gt; "/>
                         <Style.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter Property="Content" Value="Option&lt;&lt; "/>
+                                <Setter Property="Content" Value="Options&lt;&lt; "/>
                                 <Setter Property="HorizontalContentAlignment" Value="Center"/>
                             </Trigger>
                         </Style.Triggers>

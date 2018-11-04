@@ -85,7 +85,19 @@ namespace DataExtractor
             get { return (IList<float>)GetValue(ValuesProperty); }
             set => SetValue(ValuesProperty, value);
         }
-
+        /// <summary>
+        /// The XValue property. XValue is shown on top of the Legend
+        /// </summary>
+        public static readonly DependencyProperty XValueProperty = DependencyProperty.Register(
+            "XValue", typeof(String), typeof(LegendWithValues), new PropertyMetadata(String.Empty));
+        /// <summary>
+        /// Gets or sets the text to be displayed on top of the legend
+        /// </summary>
+        public string XValue
+        {
+            get { return (String)GetValue(XValueProperty); }
+            set { SetValue(XValueProperty, value); }
+        }
 
 
         /// <summary>

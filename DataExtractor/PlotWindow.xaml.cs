@@ -238,15 +238,15 @@ namespace DataExtractor
 
         // CursorValues is a list of float that represents the values of all tags at a time
         // This property is shown in the Legend with Values
-        private float[] cursorValues;
-        public float[] CursorValues
+        private float[] cursor1Values;
+        public float[] Cursor1Values
         {
-            get => cursorValues;
+            get => cursor1Values;
             set
             {
-                if (cursorValues != value)
+                if (cursor1Values != value)
                 {
-                    cursorValues = value;
+                    cursor1Values = value;
                     NotifyPropertyChanged();
                 }
             }
@@ -254,15 +254,29 @@ namespace DataExtractor
         
         // Property for the location of CursorLine1
         // Cursor is a rectangular with Width=1
-        private Thickness cursor1Margin;
-        public Thickness Cursor1Margin
+        private string cursor1Time;
+        public string Cursor1Time
         {
-            get => cursor1Margin;
+            get => cursor1Time;
             set
             {
-                if (cursor1Margin != value)
+                if (cursor1Time != value)
                 {
-                    cursor1Margin = value;
+                    cursor1Time = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private double cursor1X;
+        public double Cursor1X
+        {
+            get => cursor1X;
+            set
+            {
+                if (cursor1X != value)
+                {
+                    cursor1X = value;
                     NotifyPropertyChanged();
                 }
             }
@@ -286,7 +300,7 @@ namespace DataExtractor
             this.resolution = resolution;
             PointsToPlot = PickPoints(extractedData.RawData, selectedTags, 0, extractedData.pointCount-1, Resolution);
             DateTimeStrs = PickDates(extractedData.DateTimes, 0, extractedData.pointCount - 1, Resolution);
-            cursorValues = new float[extractedData.Tags.Length];
+            cursor1Values = new float[extractedData.Tags.Length];
             InitializeComponent();
             DataContext = this;
             // Record the zooming history
@@ -370,7 +384,7 @@ namespace DataExtractor
 
 
         // Create an array of string from an array of DateTime. The new array contains about resolution points.
-        private static string[] PickDates(DateTime[] rawData, int startIndex, int endIndex, int resolution, string format = "M/d H:mm")
+        private static string[] PickDates(DateTime[] rawData, int startIndex, int endIndex, int resolution, string format = "M/d H:mm:ss")
         {
             // If there's no array in rawData, nothing to return
             if (rawData.Length == 0)
@@ -400,7 +414,7 @@ namespace DataExtractor
             return result;
         }
 
-        private static string[] PickDates(DateTime[] rawData, DateTime startDateTime, DateTime endDateTime, int resolution, string format = "M/d H:mm")
+        private static string[] PickDates(DateTime[] rawData, DateTime startDateTime, DateTime endDateTime, int resolution, string format = "M/d H:mm:ss")
         {
             int startIndex = 0, endIndex;
             if (startDateTime > endDateTime)
@@ -552,15 +566,24 @@ namespace DataExtractor
                         xmin = xmax;
                         xmax = temp;
                     }
+                    // Limit the zoombox in the chart
+                    
+                    if (xmax > Chart.ActualWidth - Chart.ChartLegend.ActualWidth)
+                        xmax = Chart.ActualWidth - Chart.ChartLegend.ActualWidth;
                     if (ymin > ymax)
                     {
                         double temp = ymin;
                         ymin = ymax;
                         ymax = temp;
                     }
-                    ZoomBoxWidth = xmax - xmin;
-                    ZoomBoxHeight = ymax - ymin;
-                    ZoomBoxMargin = new Thickness(xmin, ymin, Chart.ActualWidth - xmax, Chart.ActualHeight - ymax);
+                    // Limit the zoombox in the chart
+                    if (ymin < 0) ymin = 0;
+                    if (ymax > Chart.ActualHeight) ymax = Chart.ActualHeight;
+                    if (xmax >= xmin && ymax >= ymin) { 
+                        ZoomBoxWidth = xmax - xmin;
+                        ZoomBoxHeight = ymax - ymin;
+                        ZoomBoxMargin = new Thickness(xmin, ymin, Chart.ActualWidth - xmax, Chart.ActualHeight - ymax);
+                    }
                 }
                 else // If the user moved the mouse to outside the Grid, release the button, and move it back into the chart, zooming will be canceled
                 {
@@ -584,9 +607,11 @@ namespace DataExtractor
                 else
                 {
                     // Simply moving the mouse in the chart. Will move the cursor
-                    double position = e.GetPosition(Chart).X;
-                    Cursor1Margin = new Thickness(position, 0, Chart.ActualWidth - position - 1, XAxis.ActualHeight);
-                    UpdateLegendValues(Chart.ConvertToChartValues(e.GetPosition(Chart)));
+                    Cursor1X = e.GetPosition(Chart).X;
+                    if (Cursor1X > Chart.ActualWidth - Chart.ChartLegend.ActualWidth)
+                        Cursor1X = Chart.ActualWidth - Chart.ChartLegend.ActualWidth;
+                    //Cursor1Margin = new Thickness(position, 0, Chart.ActualWidth - position - 1, XAxis.ActualHeight);
+                    UpdateLegendValues(Chart.ConvertToChartValues(new Point(Cursor1X, 0)).X);
                 }
                     
             }
@@ -624,6 +649,10 @@ namespace DataExtractor
                     ymin = ymax;
                     ymax = temp;
                 }
+                // If the start point is outside the range. No need to continue.
+                int startIndex = (int)xmin;
+                if (startIndex < 0) startIndex = 0;
+                else if (startIndex >= PointsPerLine) return;
                 // If the change is too small, the user is probably not intended to zoom
                 if ((ymax - ymin) / (YAxis.ActualMaxValue - YAxis.ActualMinValue) > 0.02)
                 {
@@ -633,15 +662,17 @@ namespace DataExtractor
                 // If the change is too small, the user is probably not intended to zoom
                 if ((xmax - xmin) / PointsPerLine > 0.02)
                 {
-                    int startIndex = (int)xmin;
-                    if (startIndex < 0) startIndex = 0;
+                    
                     int endIndex = (int)Math.Ceiling(xmax);
                     if (endIndex >= PointsPerLine) endIndex = PointsPerLine - 1;
                     // Here we are changing the private field "startDateTime" instead of the property "StartDateTime"
                     // because if we chagne the property, UpdatePoints() method will be invoked and DateTimeStrs will be changed.
                     startDateTime = ExtractedData.ParseDateTime(DateTimeStrs[startIndex]);
                     NotifyPropertyChanged("StartDateTime");
-                    EndDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
+                    // Here we invoke NotifyPropertyChanged and UpdatePoints manually because when 
+                    endDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
+                    NotifyPropertyChanged("EndDateTime");
+                    UpdatePoints();
                 }
                 RecordRange();
             }
@@ -655,13 +686,13 @@ namespace DataExtractor
         }
 
         // update the tag values based on the X axis positionin the chart
-        // chartValue is the position of the point
-        // typically, it shoule come from: chartValues = Chart.ConvertToChartValues(e.GetPosition(Chart))
+        // chartValue is the X position of the point
+        // typically, it shoule come from: chartValues = Chart.ConvertToChartValues(e.GetPosition(Chart)).X
         // where e is a MouseEventArg
-        private void UpdateLegendValues(Point chartValues)
+        private void UpdateLegendValues(double chartValues)
         {
             
-            int valueIndex = (int)chartValues.X;
+            int valueIndex = (int)Math.Round(chartValues);
             if (valueIndex >= 0 && valueIndex < PointsPerLine)
             {
                 // If we change the elements of CursorValues one by one, the setter will not be called, and NotifyPropertyChanged will not be fired
@@ -673,7 +704,8 @@ namespace DataExtractor
                 {
                     temp[i] = (float)PointsToPlot[i].Values[valueIndex];
                 }
-                CursorValues = temp;
+                Cursor1Values = temp;
+                Cursor1Time = DateTimeStrs[valueIndex];
             }
         }
 

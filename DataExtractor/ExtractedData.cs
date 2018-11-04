@@ -552,7 +552,7 @@ namespace DataExtractor
                     // Then create the array for the data
                     if (RawData.Count == 0)
                     {
-                        nPoints = (int)((endDateTime - startDateTime).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
+                        nPoints = (int)((endDateTime - dateTime1).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
                         // if for any reason nPoints is not positive, there's something wrong and the program will abort here
                         if (nPoints <= 0)
                             throw new ArgumentException("Number of points is not positive.");

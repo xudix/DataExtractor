@@ -14,7 +14,8 @@
     </UserControl.Resources>
     <UserControl.Template>
         <ControlTemplate>
-            <Border>
+            <StackPanel>
+                <TextBlock Text="{Binding XValue}"/>
                 <ItemsControl ItemsSource="{Binding SeriesWithValue}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -51,7 +52,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </Border>
+            </StackPanel>
         </ControlTemplate>
     </UserControl.Template>
 </UserControl>
