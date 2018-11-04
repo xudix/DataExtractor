@@ -384,7 +384,7 @@ namespace DataExtractor
 
 
         // Create an array of string from an array of DateTime. The new array contains about resolution points.
-        private static string[] PickDates(DateTime[] rawData, int startIndex, int endIndex, int resolution, string format = "M/d H:mm:ss")
+        private static string[] PickDates(DateTime[] rawData, int startIndex, int endIndex, int resolution, string format = "yyyy/M/d H:mm:ss")
         {
             // If there's no array in rawData, nothing to return
             if (rawData.Length == 0)
@@ -414,7 +414,7 @@ namespace DataExtractor
             return result;
         }
 
-        private static string[] PickDates(DateTime[] rawData, DateTime startDateTime, DateTime endDateTime, int resolution, string format = "M/d H:mm:ss")
+        private static string[] PickDates(DateTime[] rawData, DateTime startDateTime, DateTime endDateTime, int resolution, string format = "yyyy/M/d H:mm:ss")
         {
             int startIndex = 0, endIndex;
             if (startDateTime > endDateTime)
@@ -669,7 +669,10 @@ namespace DataExtractor
                     // because if we chagne the property, UpdatePoints() method will be invoked and DateTimeStrs will be changed.
                     startDateTime = ExtractedData.ParseDateTime(DateTimeStrs[startIndex]);
                     NotifyPropertyChanged("StartDateTime");
-                    // Here we invoke NotifyPropertyChanged and UpdatePoints manually because when 
+                    // Here we invoke NotifyPropertyChanged and UpdatePoints manually because
+                    // when the zoom operation is ended (mouse up) outside the chart, EndDatTime will be the same. 
+                    // In this case, the UpdatePoints method will not be invoked. 
+                    // However, we may need to invoke it since StartDateTime may have changed.
                     endDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
                     NotifyPropertyChanged("EndDateTime");
                     UpdatePoints();

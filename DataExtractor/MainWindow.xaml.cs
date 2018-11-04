@@ -173,9 +173,16 @@ namespace DataExtractor
         {
             if(SelectedTags != null && selectedFiles != null)
             {
-                PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1, 600);
-                plotWindow.Show();
-                WriteSettings();
+                try
+                {
+                    PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1, 600);
+                    plotWindow.Show();
+                    WriteSettings();
+                }
+                catch(Exception ex)
+                {
+                    MessageBox.Show("Error: Fail to show plot window. Original error: " + ex.Message);
+                }
             }
                 
         }

@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DataExtractor"
         mc:Ignorable="d"
-        Title="Data Extractor: Data Extraction and Visulization" Height="250" Width="600" MinWidth="300" MinHeight="100">
+        Title="Data eXtractor: Data Extraction and Visulization" Height="250" Width="600" MinWidth="300" MinHeight="100">
     <Window.Resources>
         <local:StringArrayConverter x:Key="StrArrConverter"/>
         <local:StringDateConverter x:Key="StrDateConverter"/>

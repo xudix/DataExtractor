@@ -657,30 +657,47 @@ namespace DataExtractor
                             break;
                         else if (dateTime1 >= startDateTime)
                         {
-                            if (skipCounter == interval) // will take the point. Otherwise, will skip
+                            if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
                             {
-                                if (pointCount == nPoints) // if for some reason the array is not large enough
-                                {
-                                    // double the size of the array
-                                    nPoints *= 2;
-                                    for (i = 0; i < indexOfTags.Count; i++)
-                                    {
-                                        Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
-                                        float[] temp = new float[nPoints];
-                                        Array.Copy(RawData[i], temp, pointCount);
-                                        RawData[i] = temp;
-                                    }
-                                }
-                                DateTimes[pointCount] = dateTime1;
-                                //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
-                                ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
+                                // New time stamp is same as previous
+                                // override the previous data by this one
+                                pointCount--;
+                                ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
                                     RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
                                 pointCount++;
                                 skipCounter = 1;
                             }
                             else
-                                skipCounter++;
+                            {
+                                if (skipCounter == interval) // will take the point. Otherwise, will skip
+                                {
+                                    if (pointCount == nPoints) // if for some reason the array is not large enough
+                                    {
+                                        // double the size of the array
+                                        nPoints *= 2;
+                                        Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
+                                        for (i = 0; i < indexOfTags.Count; i++)
+                                        {
+                                            float[] temp = new float[nPoints];
+                                            Array.Copy(RawData[i], temp, pointCount);
+                                            RawData[i] = temp;
+                                        }
+                                        DateTime[] tempDateTime = new DateTime[nPoints];
+                                        Array.Copy(DateTimes, tempDateTime, pointCount);
+                                        DateTimes = tempDateTime;
+                                    }
+                                    DateTimes[pointCount] = dateTime1;
+                                    //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                    ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
+                                    for (i = 0; i < indexOfTags.Count; i++)
+                                        RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                    pointCount++;
+                                    skipCounter = 1;
+                                }
+                                else
+                                    skipCounter++;
+                            }
                         }
 
                     } while ((line = sr.ReadLine()) != null);
