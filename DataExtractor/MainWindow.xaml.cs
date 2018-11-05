@@ -175,9 +175,9 @@ namespace DataExtractor
             {
                 try
                 {
+                    WriteSettings();
                     PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1, 600);
                     plotWindow.Show();
-                    WriteSettings();
                 }
                 catch(Exception ex)
                 {
