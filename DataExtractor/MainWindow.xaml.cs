@@ -175,7 +175,7 @@ namespace DataExtractor
             {
                 try
                 {
-                    PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1, 600);
+                    PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, Interval, Resolution);
                     plotWindow.Show();
                     WriteSettings();
                 }
@@ -365,6 +365,45 @@ namespace DataExtractor
             //Console.Write("GotFocus Sender name: " + (sender as TextBox).Name + "; Event: " + e.RoutedEvent + "\r\n");
         }
 
+                // Interval index properties
+        // The intervalInput textbox is bound to this object
+        private int interval=1;
+        public int Interval
+        {
+            get
+            {
+                return interval;
+            }
+                
+            set
+            {
+                if (interval != value)
+                {
+                    interval = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        // Plotting resolution properties
+        // The resolutionInput textbox is bound to this object
+        private int resolution=600;
+        public int Resolution
+        {
+            get
+            {
+                return resolution;
+            }
+
+            set
+            {
+                if (resolution != value)
+                {
+                    resolution = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
 
         // class TextBoxData is used for connecting the data in tag and file textbox and the 
         //public class TextBoxData
