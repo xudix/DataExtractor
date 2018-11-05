@@ -109,8 +109,8 @@ namespace DataExtractor
             OpenFileDialog dialog = new OpenFileDialog
             {
                 Title = "Select Data File",
-                DefaultExt = ".csv",
-                Filter = "CSV files (.csv)|*.csv|Text documents (.txt)|*.txt|All Files|*.*",
+                DefaultExt = ".*",
+                Filter = "All Files|*.*|CSV files (.csv)|*.csv|Text documents (.txt)|*.txt",
             };
             if (!String.IsNullOrEmpty(filePath)) dialog.InitialDirectory = filePath;
 
@@ -154,8 +154,8 @@ namespace DataExtractor
             OpenFileDialog dialog = new OpenFileDialog
             {
                 Title = "Select Data Files",
-                DefaultExt = ".csv",
-                Filter = "CSV files (.csv)|*.csv|Text documents (.txt)|*.txt|All Files|*.*",
+                DefaultExt = ".*",
+                Filter = "All Files|*.*|CSV files (.csv)|*.csv|Text documents (.txt)|*.txt",
                 Multiselect = true
             };
             if (!String.IsNullOrEmpty(filePath)) dialog.InitialDirectory = filePath;
