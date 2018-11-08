@@ -11,6 +11,9 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace DataExtractor
 {
@@ -95,7 +98,7 @@ namespace DataExtractor
             IList<string> dateList = Regex.Split(dateStr, @"[\W_]+").Where(s => s != "").ToList();
 
             int year, month, day;
-            switch (dateList.Count())
+            switch (dateList.Count)
             {
                 case 1: // There's only one element in dateIE. dateStr should be a pure digit string
                     dateStr = dateList[0];
@@ -478,20 +481,240 @@ namespace DataExtractor
             // i is the counter used in for loops
             int i;
 
-            //// In this method, we will use long integers (Int64) to represent the date and time. It encodes the time as yyyyMMddHHmmss
-            //long startTimeInt = Int64.Parse(startDateTime.ToString("yyyyMMddHHmmss"));
-            //long endTimeInt = Int64.Parse(endDateTime.ToString("yyyyMMddHHmmss"));
+            // The tagList cannot contain "Time". 
+            for (i = 0; i < tagList.Length; i++)
+                if (tagList[i] == "Time")
+                {
+                    tagList[i] = "_Time_";
+                    MessageBox.Show("\"Time\" is not an allowed tag.");
+                }
+                    
+
 
             foreach (FileRecord record in fileRecords)
             {
                 Console.WriteLine("Processing data file " + record.fileName);
-                // Excel files. Use ExcelDataReader library to handle
-                if (record.fileType.ToLower() == "xlsx" || record.fileType.ToLower() == "xls")
+                // Excel files. Use OpenXML library to handle
+                if (record.fileType.ToLower() == "xlsx")
                 {
-                    
+                    // strIndexOfTags contains the index (the order they are found in shared sting table) of requested tags
+                    // refOfTags contains the column references (in worksheet) of the requested tags
+                    // both strIndexOfTags and refOfTags are sorted in the order of the tags occuring in the xml file
+                    // "positions" records the position of a tag in the tagList
+                    string[] strIndexOfTags = new string[tagList.Length], refOfTags = new string[tagList.Length];
+                    int[] positions = new int[tagList.Length];
+                    //List<RefWithPosition> strIndexOfTags = new List<RefWithPosition>(tagList.Length);
+
+
+                    // Create SpreadsheetDocument object to represent the excel file
+                    using(SpreadsheetDocument xlsxFile = SpreadsheetDocument.Open(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite), false))
+                    {
+                        WorkbookPart workbookPart = xlsxFile.WorkbookPart;
+                        WorksheetPart worksheetPart = workbookPart.WorksheetParts.First();
+                        // first handle the sharedstring table.
+                        // The sharedstring table contains all the tag names.
+                        SharedStringTablePart sharedStringTablePart = workbookPart.SharedStringTablePart;
+                        // Find the location of all 
+                        using (OpenXmlPartReader reader = new OpenXmlPartReader(sharedStringTablePart))
+                        {
+                            // read all Text element in the sharedstringtable
+                            // Find the index of all the requested  tags
+                            int index = 0;
+                            int tagCount = 0;
+                            string currentTag;
+                            while (reader.Read())
+                            {
+                                if (reader.ElementType == typeof(Text) && reader.IsStartElement)
+                                {
+                                    currentTag = reader.GetText();
+                                    for (i = 0; i < tagList.Length; i++)
+                                    {
+                                        // for each cell, check if it matches a requested tag
+                                        if (tagList[i] == currentTag)
+                                        {
+                                            strIndexOfTags[tagCount] = index.ToString();
+                                            positions[tagCount] = i;
+                                            tagCount++;
+                                            break;
+                                        }
+                                    }
+                                    // found all tags. no need to continue reading excel
+                                    if (tagCount == tagList.Length)
+                                        break;
+                                    index++;
+                                }
+                            }
+                            // No need to sort indexOfTags anymore, as all items are added in the ascending order of Index
+                            // in case some tags does not exist
+                            if (tagCount < tagList.Length)
+                            {
+                                // Check which tag does not exist. Go over all tags
+                                for (i = 0; i < tagList.Length; i++)
+                                {
+                                    // for each tag, see if the corresponding Position exist in positions
+                                    for (int j = 0; j < tagCount; j++)
+                                    {
+                                        if (positions[j] == i)
+                                        {
+                                            // The ith tag is found in indexOfTags
+                                            break;
+                                        }
+                                        else if (j == tagCount - 1) // hit the last thing in positions, and tag is not found.
+                                        {
+                                            // Add one entry to strIndexOfTags and positions. done with this tag
+                                            MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + record.fileName + "\".");
+                                            //strIndexOfTags[tagCount] = "";
+                                            positions[tagCount] = i;
+                                            tagCount++;
+                                            break;
+                                        }
+                                    }
+                                    if (tagCount == tagList.Length)
+                                        break;
+                                }
+                            }
+                        }
+                        
+                        // Now go to the data sheet xml, which is the worksheet part
+                        using (OpenXmlPartReader reader = new OpenXmlPartReader(worksheetPart))
+                        {
+                            int tagCount = 0;
+                            // For OpenXml format file, if a cell is empty, no Cell exist in the xml
+                            // Thus, we have to rely on the CellReference (attribute "r") to determine what value to take
+                            // refOfTags contains the CellReference (only the column part, no row number) of the tags in TagList and indexOfTags
+                            Cell currentCell;
+                            XmlFindNext(reader, typeof(Cell));
+                            
+                            // In first row, get the column references of the tags
+                            // The first row in xml looks like:
+                            // <Row>
+                            //  <c r="A1" t="s">
+                            //   <v>0</v>
+                            //  </c>
+                            do
+                            {
+                                currentCell = (Cell)reader.LoadCurrentElement();
+                                if (currentCell.CellValue.Text == strIndexOfTags[tagCount])
+                                {
+                                    refOfTags[tagCount] = GetColumnRef(currentCell.CellReference);
+                                    tagCount++;
+                                    if (tagCount == tagList.Length || String.IsNullOrEmpty(strIndexOfTags[tagCount]))
+                                        break;
+                                }
+                                
+                            } while (reader.ReadNextSibling());
+                            XmlFindNext(reader, typeof(Row));
+                            XmlFindNext(reader, typeof(Cell));
+                            currentCell = (Cell)reader.LoadCurrentElement();
+                            // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
+                            // Try to estimate the number of points to be extracted. Initialize array accordingly
+                            // Then create the array for the data
+                            if (RawData.Count == 0)
+                            {
+                                dateTime1 = DateTime.FromOADate(Double.Parse(currentCell.CellValue.Text));
+                                if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                    break;
+                                // Get the values of requested tags into dataOfOnePoint
+                                if (dateTime1 >= startDateTime)
+                                    GetCellValues2(reader, refOfTags, ref dataOfOnePoint);
+                                // then go to the second line
+                                XmlFindNext(reader, typeof(Row));
+                                XmlFindNext(reader, typeof(Cell));
+                                currentCell = (Cell)reader.LoadCurrentElement();
+                                DateTime dateTime2 = DateTime.FromOADate(Double.Parse(currentCell.CellValue.Text));
+                                // In some data files, the first two lines have the same time stamp.
+                                // Keep the second one
+                                while (dateTime1 == dateTime2)
+                                {
+                                    // take tag values of line 2
+                                    GetCellValues2(reader, refOfTags, ref dataOfOnePoint);
+                                    // go to line 3
+                                    XmlFindNext(reader, typeof(Row));
+                                    XmlFindNext(reader, typeof(Cell));
+                                    currentCell = (Cell)reader.LoadCurrentElement();
+                                    dateTime2 = DateTime.FromOADate(Double.Parse(currentCell.CellValue.Text));
+                                }
+                                nPoints = (int)((endDateTime - dateTime1).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
+                                // if for any reason nPoints is not positive, there's something wrong and the program will abort here
+                                if (nPoints <= 0)
+                                    throw new ArgumentException("Number of points is not positive.");
+                                for (i = 0; i < tagList.Length; i++)
+                                {
+                                    RawData.Add(new float[nPoints]);
+                                }
+                                DateTimes = new DateTime[nPoints];
+                                //DateTimeStrs = new string[nPoints];
+                                if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
+                                {
+                                    DateTimes[pointCount] = dateTime1;
+                                    for (i = 0; i < positions.Length; i++)
+                                        RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                    skipCounter = 1;
+                                    pointCount++;
+                                }
+                            }// If it's the first file, now the reader and currentCell will be at the 2nd data row first cell
+                            // if it's not the first file, now the reader and currentCell will be at the 1st data row first cell
+                            do
+                            {
+                                dateTime1 = DateTime.FromOADate(Double.Parse(currentCell.CellValue.Text));
+                                if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                    break;
+                                else if (dateTime1 >= startDateTime)
+                                {
+                                    if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
+                                    {
+                                        // New time stamp is same as previous
+                                        // override the previous data by this one
+                                        pointCount--;
+                                        GetCellValues2(reader, refOfTags, ref dataOfOnePoint);
+                                        for (i = 0; i < positions.Length; i++)
+                                            RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                        pointCount++;
+                                        skipCounter = 1;
+                                    }
+                                    else
+                                    {
+                                        if (skipCounter == interval) // will take the point. Otherwise, will skip
+                                        {
+                                            if (pointCount == nPoints) // if for some reason the array is not large enough
+                                            {
+                                                // double the size of the array
+                                                nPoints *= 2;
+                                                Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
+                                                for (i = 0; i < indexOfTags.Count; i++)
+                                                {
+                                                    float[] temp = new float[nPoints];
+                                                    Array.Copy(RawData[i], temp, pointCount);
+                                                    RawData[i] = temp;
+                                                }
+                                                DateTime[] tempDateTime = new DateTime[nPoints];
+                                                Array.Copy(DateTimes, tempDateTime, pointCount);
+                                                DateTimes = tempDateTime;
+                                            }
+                                            DateTimes[pointCount] = dateTime1;
+                                            //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                            GetCellValues2(reader, refOfTags, ref dataOfOnePoint);
+                                            for (i = 0; i < positions.Length; i++)
+                                                RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                            pointCount++;
+                                            skipCounter = 1;
+                                        }
+                                        else
+                                            skipCounter++;
+                                    }
+                                }
+                                XmlFindNext(reader, typeof(Row));
+                                XmlFindNext(reader, typeof(Cell));
+                                if(!reader.EOF)
+                                    currentCell = (Cell)reader.LoadCurrentElement();
+                            } while (!reader.EOF);
+                            if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                break;
+                        }
+                    }
                 }
-                // csv or txt file. Use own algorithm. 
-                else
+
+                else // csv or txt file. Use own algorithm. 
                 {
                     using (StreamReader sr = new StreamReader(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                     {
@@ -876,8 +1099,7 @@ namespace DataExtractor
             // This overload method do the same for every number in List nth
             // The caller should guarentee that: 
             // 1. The List nth is sorted in ascending order
-            // 2. The List result is at least as large as the List nth
-            // 3. The array in result should be long enough to take all fileds specified by "nth"
+            // 2. The array in result should be long enough to take all fileds specified by "nth"
             int endCount = 0; // the number of "end" seen
             int itemCount = 0; // number of items completed in the List nth
             int writeCount = 0; // number of chars written to cResult
@@ -941,6 +1163,171 @@ namespace DataExtractor
         public static DateTime ParseDateTime(string datetime) =>
             ParseDate(ReadStrUntil(datetime, ' ')) + ParseTime(ReadStrUntil(datetime, ' ', 1));
 
+        // move xmlReader to next element of "type" that is a start element
+        private static void XmlFindNext(OpenXmlReader xmlReader, Type type)
+        {
+            //do
+            //{
+            //    if(!xmlReader.Read()) break;
+            //} while (xmlReader.ElementType != type || !xmlReader.IsStartElement);
+            while (xmlReader.Read())
+            {
+                if (xmlReader.ElementType == type && xmlReader.IsStartElement)
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Convert the A1 style cell reference to the column reference, i.e. the letters corresponding to the column
+        /// </summary>
+        /// <param name="cellReference">A1 style cell reference</param>
+        /// <returns>The column part of the reference</returns>
+        private static string GetColumnRef(string cellReference)
+        {
+            char[] buffer = new char[3];
+            int writeCount = 0;
+            for(int readCount = 0; readCount < cellReference.Length; readCount++)
+            {
+                if (cellReference[readCount] >= 'A')
+                {
+                    buffer[writeCount] = cellReference[readCount];
+                    writeCount++;
+                }
+                else
+                    break;
+            }
+            return new string(buffer, 0, writeCount);
+        }
+
+        // Get cell values at given indexes of a Row from the OpenXmlReader
+        // The indexes come from the Index of every element from nth
+        // 1. The List colReferences is sorted in ascending order
+        // 2. The array in result should be long enough to take all fileds specified by "colReferences"
+        // 3. The reader should be at or before the first NEEDED cell of the Row
+        private static void GetCellValues(OpenXmlReader reader, string[] colReferences, ref float[] result)
+        {
+            
+            int itemCount = 0;
+            string currentRef;
+            Cell currentCell;
+            // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+            // Stop reading, and write NaN to return array
+            if (String.IsNullOrEmpty(colReferences[0]))
+            {
+                do
+                {
+                    result[itemCount] = Single.NaN;
+                    itemCount++;
+                } while (itemCount < colReferences.Length);
+            }
+            else
+            {
+                XmlFindNext(reader, typeof(Cell));
+                do
+                {
+                    // Found a Cell
+                    currentCell = (Cell)reader.LoadCurrentElement();
+                    currentRef = GetColumnRef(currentCell.CellReference);
+                    // If the index is requested by nth
+                    if (currentRef == colReferences[itemCount])
+                    {
+                        result[itemCount] = Single.Parse(currentCell.CellValue.Text);
+                        itemCount++;
+                        // If found all items requested, quit the do loop
+                        if (itemCount == colReferences.Length)
+                            return;
+                        // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+                        // Stop reading, and write NaN to return array
+                        if (String.IsNullOrEmpty(colReferences[itemCount]))
+                        {
+                            do
+                            {
+                                result[itemCount] = Single.NaN;
+                                itemCount++;
+                            } while (itemCount < colReferences.Length);
+                            return;
+                        }
+                    }
+                } while (reader.ReadNextSibling());
+                // Got to the end of the row. Quit.
+                // Should never get here since the method would have returned in the while loop.
+                do
+                {
+                    result[itemCount] = Single.NaN;
+                    itemCount++;
+                } while (itemCount < colReferences.Length);
+            }
+        }
+
+        // Get cell values at given indexes of a Row from the OpenXmlReader
+        // The indexes come from the Index of every element from nth
+        // 1. The List colReferences is sorted in ascending order
+        // 2. The array in result should be long enough to take all fileds specified by "colReferences"
+        // 3. The reader should be at or before the first NEEDED cell of the Row
+        private static void GetCellValues2(OpenXmlReader reader, string[] colReferences, ref float[] result)
+        {
+
+            int itemCount = 0;
+            // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+            // Stop reading, and write NaN to return array
+            if (String.IsNullOrEmpty(colReferences[0]))
+            {
+                do
+                {
+                    result[itemCount] = Single.NaN;
+                    itemCount++;
+                } while (itemCount < colReferences.Length);
+            }
+            else
+            {
+                XmlFindNext(reader, typeof(Cell));
+                do
+                {
+                    // Get to the end of the row. will quit.
+                    if (reader.ElementType == typeof(Row))
+                        break;
+                    else if (reader.ElementType == typeof(Cell) && reader.IsStartElement)// Found a Cell
+                    {
+                        foreach (OpenXmlAttribute attribute in reader.Attributes) // simply take Attributes[0]?
+                        {
+                            if (attribute.LocalName == "r")
+                            {
+                                if (GetColumnRef(attribute.Value) == colReferences[itemCount]) // found the cell with requested colRef
+                                {
+                                    XmlFindNext(reader, typeof(CellValue)); // replace it by a single reader.Read() call?
+                                    result[itemCount] = Single.Parse(reader.GetText());
+                                    itemCount++;
+                                    // If found all items requested, quit the do loop
+                                    if (itemCount == colReferences.Length)
+                                        return;
+                                    // If the current index is null, then the upcoming tags are not found in this file.
+                                    // Stop reading, and write NaN to return array
+                                    if (String.IsNullOrEmpty(colReferences[itemCount]))
+                                    {
+                                        do
+                                        {
+                                            result[itemCount] = Single.NaN;
+                                            itemCount++;
+                                        } while (itemCount < colReferences.Length);
+                                        return;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                } while (reader.Read());
+                // Got to the end of the row. Quit.
+                // Should never get here since the method would have returned in the while loop.
+                do
+                {
+                    result[itemCount] = Single.NaN;
+                    itemCount++;
+                } while (itemCount < colReferences.Length);
+            }
+        }
+
+
         // A FileRecord include the file pathname, file type, and start time.
         // The constructor will determine the start time based on the file name.
         private struct FileRecord : IComparable<FileRecord>
@@ -998,6 +1385,24 @@ namespace DataExtractor
 
             public int CompareTo(IndexWithPosition other) =>
                 Index.CompareTo(other.Index);
+        }
+
+        /// <summary>
+        /// This struct is used to record the column reference of cells in Xml file of a tag
+        /// Reference is the column part (letter part) of the CellReference. 
+        /// Position is the position of the tag in TagList
+        /// </summary>
+        private struct RefWithPosition
+        {
+            public string Reference { get; set; }
+            public int Position;
+
+            public RefWithPosition(string reference, int position)
+            {
+                Reference = reference;
+                Position = position;
+            }
+
         }
 
         // Write the extracted data to a file that the user specified
