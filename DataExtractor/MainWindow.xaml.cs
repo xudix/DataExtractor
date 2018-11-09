@@ -19,6 +19,7 @@ using System.Collections;
 using LiveCharts;
 using LiveCharts.Defaults;
 using LiveCharts.Wpf;
+using System.IO.Compression;
 
 namespace DataExtractor
 {
@@ -60,6 +61,7 @@ namespace DataExtractor
 
         }
 
+        // Not used anymore
         private void PickTagBottom_Click(object sender, RoutedEventArgs e)
         {
             string tagList = String.Empty;
@@ -104,13 +106,13 @@ namespace DataExtractor
         private void PickTagBottom_fromDataFile_Click(object sender, RoutedEventArgs e)
         {
             string tagList = String.Empty;
-            string[] tagArray;
+            string[] tagArray = new string[0];
             // The dialog to select Tag List
             OpenFileDialog dialog = new OpenFileDialog
             {
                 Title = "Select Data File",
                 DefaultExt = ".*",
-                Filter = "All Files|*.*|CSV files (.csv)|*.csv|Text documents (.txt)|*.txt",
+                Filter = "All Files|*.*|Excel Documents (.xlsx)|*.xlsx|CSV files (.csv)|*.csv|Text documents (.txt)|*.txt",
             };
             if (!String.IsNullOrEmpty(filePath)) dialog.InitialDirectory = filePath;
 
@@ -118,24 +120,46 @@ namespace DataExtractor
             if (dialog.ShowDialog(this) == true)
             {
                 filePath = Path.GetDirectoryName(dialog.FileName);
-                try
+                if (Path.GetExtension(dialog.FileName).ToLower() == ".xlsx")
                 {
-                    using (StreamReader sr = new StreamReader(new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                    try
                     {
-                        // Read the first line from the file. 
-                        tagList = sr.ReadLine();
-                        // Remove the "Date", "Time", and "Millitm" fields from the first line
-                        tagList = Regex.Replace(tagList, @"^(;?date)?[\W_]*time[\W_]*(millitm)?", "", RegexOptions.IgnoreCase);
+                        using (ZipArchive xlsxFile = new ZipArchive(new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                        {
+                            tagArray = XlsxTool.GetHeaderWithColReference(xlsxFile).header;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Error: Failed to obtain tags. Please select an XLSX, CSV, or TXT data file. \nOriginal error: " + ex.Message);
+                        return;
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    MessageBox.Show("Error: Could not read tag file from disk. Original error: " + ex.Message);
+                    try
+                    {
+                        using (StreamReader sr = new StreamReader(new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                        {
+                            // Read the first line from the file. 
+                            tagList = sr.ReadLine();
+                            // Remove the "Date", "Time", and "Millitm" fields from the first line
+                            tagList = Regex.Replace(tagList, @"^(;?date)?[\W_]*time[\W_]*(millitm)?", "", RegexOptions.IgnoreCase);
+                            if (!String.IsNullOrEmpty(tagList))
+                            {
+                                char[] separators = { ' ', ',', '\t', '\n', '\r', ';' };
+                                tagArray = tagList.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Error: Failed to obtain tags. Please select an XLSX, CSV, or TXT data file. \nOriginal error: " + ex.Message);
+                        return;
+                    }
                 }
-                if (!String.IsNullOrEmpty(tagList))
+                if (tagArray.Length > 0)
                 {
-                    char[] separators = { ' ', ',', '\t', '\n', '\r', ';' };
-                    tagArray = tagList.Split(separators, StringSplitOptions.RemoveEmptyEntries);
                     PickTagWindow pickTagDialog = new PickTagWindow(tagArray);
                     // The ShowDialog() method of Window class will show the window and disable the mian window.
                     if (pickTagDialog.ShowDialog() == true && pickTagDialog.SelectedTags != null)
@@ -155,7 +179,7 @@ namespace DataExtractor
             {
                 Title = "Select Data Files",
                 DefaultExt = ".*",
-                Filter = "All Files|*.*|CSV files (.csv)|*.csv|Text documents (.txt)|*.txt",
+                Filter = "All Files|*.*|Excel Documents (.xlsx)|*.xlsx|CSV files (.csv)|*.csv|Text documents (.txt)|*.txt",
                 Multiselect = true
             };
             if (!String.IsNullOrEmpty(filePath)) dialog.InitialDirectory = filePath;
@@ -181,7 +205,7 @@ namespace DataExtractor
                 }
                 catch(Exception ex)
                 {
-                    MessageBox.Show("Error: Fail to show plot window. Original error: " + ex.Message);
+                    MessageBox.Show("Error: Fail to show plot window. Original error: " + ex.Message + "\n" + ex.StackTrace);
                 }
             }
                 
