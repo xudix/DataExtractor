@@ -510,7 +510,6 @@ namespace DataExtractor
                     using (ZipArchive xlsxFile = new ZipArchive(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                     {
                         // Get the header (first row) of the data file
-
                         XlsxTool.HeaderWithColRef headerWithRef = XlsxTool.GetHeaderWithColReference(xlsxFile);
                         // Find the location (column reference) of all the requested  tags
                         int index = 0;
@@ -553,7 +552,6 @@ namespace DataExtractor
                                     {
                                         // Add one entry to strIndexOfTags and positions. done with this tag
                                         MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + record.fileName + "\".");
-                                        //strIndexOfTags[tagCount] = "";
                                         positions[tagCount] = i;
                                         tagCount++;
                                         break;
@@ -573,13 +571,95 @@ namespace DataExtractor
                             // Then create the array for the data
                             if (RawData.Count == 0)
                             {
-                                dateTime1 = DateTime.FromOADate(XlsxTool.GetValueFromRow<Double>(row, "A"));
-
-                            }
+                                dateTime1 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row, "A"));
+                                if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                    break;
+                                string row2 = XlsxTool.XlsxReadOne(worksheetReader, "row").text;
+                                DateTime dateTime2 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row2, "A"));
+                                // In some data files, the first line has the same time stamp with the second. 
+                                while (dateTime1 == dateTime2)
+                                {
+                                    row = row2;
+                                    row2 = XlsxTool.XlsxReadOne(worksheetReader, "row").text;
+                                    dateTime2 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row2, "A"));
+                                }
+                                nPoints = (int)((endDateTime - dateTime1).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
+                                // if for any reason nPoints is not positive, there's something wrong and the program will abort here
+                                if (nPoints <= 0)
+                                    throw new ArgumentException("Number of points is not positive.");
+                                // Initialize the result arrays
+                                for (i = 0; i < tagList.Length; i++)
+                                {
+                                    RawData.Add(new float[nPoints]);
+                                }
+                                DateTimes = new DateTime[nPoints];
+                                if(dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
+                                {
+                                    DateTimes[pointCount] = dateTime1;
+                                    XlsxTool.GetFloatsFromRow(row, refOfTags, ref dataOfOnePoint);
+                                    for (i = 0; i < positions.Length; i++)
+                                        RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                    skipCounter = 1;
+                                    pointCount++;
+                                }
+                                row = row2;
+                            }// At this point, if it's the first file, the streamreader is at the 3rd row
+                            // If it's not the first file, the streamreader is at the 2nd row
+                            do
+                            {
+                                dateTime1 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row, "A"));
+                                if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                    break;
+                                else if (dateTime1 >= startDateTime) // Data point is needed
+                                {
+                                    if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
+                                    {
+                                        // New time stamp is same as previous
+                                        // override the previous data by this one
+                                        pointCount--;
+                                        XlsxTool.GetFloatsFromRow(row, refOfTags, ref dataOfOnePoint);
+                                        for (i = 0; i < positions.Length; i++)
+                                            RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                        pointCount++;
+                                        skipCounter = 1;
+                                    }
+                                    else
+                                    {
+                                        if (skipCounter == interval) // will take the point. Otherwise, will skip
+                                        {
+                                            if (pointCount == nPoints) // if for some reason the array is not large enough
+                                            {
+                                                // double the size of the array
+                                                nPoints *= 2;
+                                                Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
+                                                for (i = 0; i < indexOfTags.Count; i++)
+                                                {
+                                                    float[] temp = new float[nPoints];
+                                                    Array.Copy(RawData[i], temp, pointCount);
+                                                    RawData[i] = temp;
+                                                }
+                                                DateTime[] tempDateTime = new DateTime[nPoints];
+                                                Array.Copy(DateTimes, tempDateTime, pointCount);
+                                                DateTimes = tempDateTime;
+                                            }
+                                            DateTimes[pointCount] = dateTime1;
+                                            //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                            XlsxTool.GetFloatsFromRow(row, refOfTags, ref dataOfOnePoint);
+                                            for (i = 0; i < positions.Length; i++)
+                                                RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                            pointCount++;
+                                            skipCounter = 1;
+                                        }
+                                        else
+                                            skipCounter++;
+                                    }
+                                }
+                            } while ((row = XlsxTool.XlsxReadOne(worksheetReader, "row").text).Length > 0);
+                            if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                break;
                         }
                     }
                 }
-
                 else // csv or txt file. Use own algorithm. 
                 {
                     using (StreamReader sr = new StreamReader(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
@@ -674,7 +754,6 @@ namespace DataExtractor
                                 //}
                             }
                             DateTimes = new DateTime[nPoints];
-                            //DateTimeStrs = new string[nPoints];
                             if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
                             {
                                 DateTimes[pointCount] = dateTime1;

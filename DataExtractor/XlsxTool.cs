@@ -139,6 +139,7 @@ namespace DataExtractor
         {
             string elementName;
             char c;
+            int c_int;
             char[] textBuffer = new char[4096];
             char[] attributeBuffer = new char[1024];
             char[] elementNameBuffer = new char[1024];
@@ -148,9 +149,9 @@ namespace DataExtractor
             XmlEntry result;
             result.text = String.Empty;
             result.xmlAttributes = new List<XmlAttributeItem>();
-            while(reader.Peek() >= 0)
+            while((c_int = reader.Read())>=0)
             {
-                c = (char)reader.Read();
+                c = (char)c_int;
                 if (isInWantedElement) // Currently in the wanted element. Will write down the current char and watch if we get to the end of the element
                 {
                     textBuffer[textWriteCount] = c;
@@ -542,6 +543,501 @@ namespace DataExtractor
                 valueText = new string(textBuffer, 0, textWriteCount);
             return (T)Convert.ChangeType(valueText, typeof(T));
 
+        }
+
+
+        public static double GetDoubleFromRow(string row, string colRef)
+        {
+            char c;
+            char[] textBuffer = new char[4096];
+            char[] attributeBuffer = new char[128];
+            char[] elementNameBuffer = new char[128];
+            int textWriteCount = 0, attrWriteCount = 0, elementNameWriteCount = 0;
+            bool isInWantedCell = false;
+            ReaderLocationType locationType = ReaderLocationType.StartOfSearch;
+            for (int i = 0; i < row.Length; i++)
+            {
+                c = row[i];
+                if (isInWantedCell) // Currently cursor in the wanted cell
+                {
+                    switch (locationType)
+                    {
+                        case ReaderLocationType.StartOfSearch:
+                            if (c == '<')
+                                locationType = ReaderLocationType.StartElement;
+                            break;
+                        case ReaderLocationType.StartElement:
+                            switch (c)
+                            {
+                                case ' ': // end of element name, followed by attribute. should not get here
+                                    if (elementNameBuffer[0] != 'v' || elementNameWriteCount != 1)// Not the value part. will skip this element
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    else // if for some reason the value part have attribute. Don't need to know the attribute for now
+                                        locationType = ReaderLocationType.Attribute;
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '>': // end of element name and no attributel go to text.
+                                    if (elementNameBuffer[0] == 'v' || elementNameWriteCount == 1)// got into the value part.
+                                    {
+                                        locationType = ReaderLocationType.Text;
+                                    }
+                                    else // other element
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '/': // end of element. 
+                                    if (elementNameWriteCount != 0) // It's not following the < sign. It's an empty element.
+                                    {
+                                        if (elementNameBuffer[0] == 'v' || elementNameWriteCount == 1)// the value part is empty.
+                                        {
+                                            // prepare to return. Set cursor to the end of the row
+                                            i = row.Length;
+                                        }
+                                        else // other element
+                                        {
+                                            // search for the next element
+                                            locationType = ReaderLocationType.StartOfSearch;
+                                        }
+                                    }
+                                    else // it's following a < sign. End element. Not the v element. Keep searching
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    break;
+                                default:
+                                    elementNameBuffer[elementNameWriteCount] = c;
+                                    elementNameWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.Attribute:
+                            if (c == '>')//end of attribute of 'v' part. will start recording the text
+                            {
+                                locationType = ReaderLocationType.Text;
+                            }
+                            break;
+                        case ReaderLocationType.Text:
+                            switch (c)
+                            {
+                                case '<': // finished reading the 'v' part. will return. set the cursor to the end of the row string
+                                    i = row.Length;
+                                    break;
+                                default:
+                                    textBuffer[textWriteCount] = c;
+                                    textWriteCount++;
+                                    break;
+                            }
+                            break;
+                        default:
+                            throw new InvalidDataException("Fail to process row.\n" + row);
+                    }
+                }
+                else // currently cursor not in the wanted cell
+                {
+                    switch (locationType)
+                    {
+                        case ReaderLocationType.StartOfSearch:
+                            if (c == '<')
+                            {
+                                locationType = ReaderLocationType.StartElement;
+                            }
+                            break;
+                        case ReaderLocationType.StartElement:
+                            switch (c)
+                            {
+                                case ' ': // end of element name. Upcoming things will be attributes
+                                    if (elementNameBuffer[0] == 'c' && elementNameWriteCount == 1)// got into a cell. Will read the attribute 
+                                    {
+                                        locationType = ReaderLocationType.Attribute;
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '>': // end of element name and no attributel go to text.
+                                    if (elementNameBuffer[0] == 'c' && elementNameWriteCount == 1)// got into a cell. This should not happen since there should be attribute
+                                    {
+                                        throw (new InvalidDataException("The cell does not contain Reference Attribute.\n" + row));
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '/': // end of element. 
+                                    if (elementNameWriteCount != 0) // It's not following the < sign. It's an empty element.
+                                    {
+                                        if (elementNameBuffer[0] == 'c' && elementNameWriteCount == 1)// got into a cell. This should not happen since there should be attribute
+                                        {
+                                            throw (new InvalidDataException("The cell does not contain Reference Attribute.\n" + row));
+                                        }
+                                        else // other element and not inside the wanted element.
+                                        {
+                                            // search for the next element
+                                            locationType = ReaderLocationType.StartOfSearch;
+                                        }
+                                        elementNameWriteCount = 0;
+                                    }
+                                    else // it's following a < sign. End element. Since we are not in the wanted element, don't care about this element.
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    break;
+                                default:
+                                    elementNameBuffer[elementNameWriteCount] = c;
+                                    elementNameWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.Attribute:// Attribute only exis in the StartElement. 
+                            switch (c)
+                            {
+                                case '=': // end of attribute name
+                                    if (attributeBuffer[0] == 'r' && attrWriteCount == 1)// found the Reference attribute
+                                    {
+                                        // Will read the attribute value
+                                        locationType = ReaderLocationType.AttributeValue;
+                                    }
+                                    attrWriteCount = 0;
+                                    break;
+                                case ' ': // end of an attribute. Another attribute coming.
+                                    attrWriteCount = 0;
+                                    break;
+                                case '/': // end of attribute and the whole element. Empty cell?
+                                    throw new InvalidDataException("The cell does not contain Reference Attribute.\n" + row);
+                                case '>': // end of attribute and start element. Should not get here
+                                    throw new InvalidDataException("The cell does not contain Reference Attribute.\n" + row);
+                                default:
+                                    attributeBuffer[attrWriteCount] = c;
+                                    attrWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.AttributeValue:
+                            switch (c)
+                            {
+                                case '\"':
+                                    if (attrWriteCount > 0)//finished reading the reference attribute. Should not get here, since only column reference is needed
+                                    {
+                                        throw new InvalidDataException("The cell contains invalid Reference Attribute.\n" + row);
+                                    }
+                                    break;
+                                case ' ':
+                                case '/':
+                                case '>': //should not see these.
+                                    throw new InvalidDataException("The cell contains invalid Reference Attribute.\n" + row);
+                                default:
+                                    if (c >= '0' && c <= '9') // end of column reference
+                                    {
+                                        if (new string(attributeBuffer, 0, attrWriteCount) == colRef) // this is the column we need
+                                        {
+                                            isInWantedCell = true;
+
+                                        }// If is not the column we need, switch back to StartOfSearch
+                                        attrWriteCount = 0;
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    else // still reading column reference
+                                    {
+                                        attributeBuffer[attrWriteCount] = c;
+                                        attrWriteCount++;
+                                    }
+                                    break;
+                            }
+                            break;
+                        default:
+                            throw new InvalidDataException("Fail to process row.\n" + row);
+                    }
+                }
+            }
+            if (textWriteCount > 0)
+                return Double.Parse(new string(textBuffer, 0, textWriteCount));
+            else
+                return Double.NaN;
+
+        }
+
+
+        public static void GetFloatsFromRow(string row, IList<string> colRef, ref float[] result)
+        {
+            char c;
+            char[] textBuffer = new char[4096];
+            char[] attributeBuffer = new char[128];
+            char[] elementNameBuffer = new char[128];
+            int textWriteCount = 0, attrWriteCount = 0, elementNameWriteCount = 0;
+            int resultCount = 0; // number of items found in colRef
+            int colNumber; // The colume number corresponding to the A1 style column index. obtained from the ConvertColRef method.
+            bool isInWantedCell = false;
+            ReaderLocationType locationType = ReaderLocationType.StartOfSearch;
+            if (String.IsNullOrEmpty(colRef[0]))
+            {
+                for (int i = resultCount; i < colRef.Count; i++)
+                    result[i] = Single.NaN;
+                return;
+            }
+            colNumber = ConvertColRef(colRef[0]);
+            for (int i = 0; i < row.Length; i++)
+            {
+                c = row[i];
+                if (isInWantedCell) // Currently cursor in the wanted cell. will search for 'v' element and read the text in it.
+                {
+                    switch (locationType)
+                    {
+                        case ReaderLocationType.StartOfSearch:
+                            if (c == '<')
+                                locationType = ReaderLocationType.StartElement;
+                            break;
+                        case ReaderLocationType.StartElement:
+                            switch (c)
+                            {
+                                case ' ': // end of element name, followed by attribute. should not get here
+                                    if (elementNameBuffer[0] != 'v' || elementNameWriteCount != 1)// Not the value part. will skip this element
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    else // if for some reason the value part have attribute. Don't need to know the attribute for now
+                                        locationType = ReaderLocationType.Attribute;
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '>': // end of element name and no attributel go to text.
+                                    if (elementNameBuffer[0] == 'v' || elementNameWriteCount == 1)// got into the value part.
+                                    {
+                                        locationType = ReaderLocationType.Text;
+                                    }
+                                    else // other element
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '/': // end of element. 
+                                    if (elementNameWriteCount != 0) // It's not following the < sign. It's an empty element.
+                                    {
+                                        if (elementNameBuffer[0] == 'v' || elementNameWriteCount == 1)// the value part is empty.
+                                        {
+                                            // write NaN to the result array, and continue to the next one
+                                            result[resultCount] = Single.NaN;
+                                            resultCount++;
+                                            if (resultCount == colRef.Count) // found all items requested by colRef
+                                                return;
+                                            if (String.IsNullOrEmpty(colRef[resultCount]))
+                                            {
+                                                for (int j = resultCount; j < colRef.Count; j++)
+                                                    result[j] = Single.NaN;
+                                                return;
+                                            }
+                                            colNumber = ConvertColRef(colRef[resultCount]);
+                                            isInWantedCell = false;
+                                        }
+                                    }
+                                    locationType = ReaderLocationType.StartOfSearch;
+                                    break;
+                                default:
+                                    elementNameBuffer[elementNameWriteCount] = c;
+                                    elementNameWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.Attribute:
+                            if (c == '>')//end of attribute of 'v' part. will start recording the text
+                            {
+                                locationType = ReaderLocationType.Text;
+                            }
+                            break;
+                        case ReaderLocationType.Text:
+                            switch (c)
+                            {
+                                case '<': // finished reading the 'v' part. Record the value to result and move to the next one
+                                    result[resultCount] = Single.Parse(new string(textBuffer, 0, textWriteCount));
+                                    textWriteCount = 0;
+                                    resultCount++;
+                                    if (resultCount == colRef.Count) // found all items requested by colRef
+                                        return;
+                                    if (String.IsNullOrEmpty(colRef[resultCount]))
+                                    {
+                                        for (int j = resultCount; j < colRef.Count; j++)
+                                            result[j] = Single.NaN;
+                                        return;
+                                    }
+                                    colNumber = ConvertColRef(colRef[resultCount]);
+                                    isInWantedCell = false;
+                                    locationType = ReaderLocationType.StartOfSearch;
+                                    break;
+                                default:
+                                    textBuffer[textWriteCount] = c;
+                                    textWriteCount++;
+                                    break;
+                            }
+                            break;
+                        default:
+                            throw new InvalidDataException("Fail to process row.\n" + row);
+                    }
+                }
+                else // currently cursor not in the wanted cell. Will search for 'c' and read 'r' attribute
+                {
+                    switch (locationType)
+                    {
+                        case ReaderLocationType.StartOfSearch:
+                            if (c == '<')
+                            {
+                                locationType = ReaderLocationType.StartElement;
+                            }
+                            break;
+                        case ReaderLocationType.StartElement:
+                            switch (c)
+                            {
+                                case ' ': // end of element name. Upcoming things will be attributes
+                                    if (elementNameBuffer[0] == 'c' && elementNameWriteCount == 1)// got into a cell. Will read the attribute 
+                                    {
+                                        locationType = ReaderLocationType.Attribute;
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '>': // end of element name and no attributel go to text.
+                                    if (elementNameBuffer[0] == 'c' && elementNameWriteCount == 1)// got into a cell. This should not happen since there should be attribute
+                                    {
+                                        throw (new InvalidDataException("The cell does not contain Reference Attribute.\n" + row));
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '/': // end of element. 
+                                    if (elementNameWriteCount != 0) // It's not following the < sign. It's an empty element.
+                                    {
+                                        if (elementNameBuffer[0] == 'c' && elementNameWriteCount == 1)// got into a cell. This should not happen since there should be attribute
+                                        {
+                                            throw (new InvalidDataException("The cell does not contain Reference Attribute.\n" + row));
+                                        }
+                                        else // other element and not inside the wanted element.
+                                        {
+                                            // search for the next element
+                                            locationType = ReaderLocationType.StartOfSearch;
+                                        }
+                                        elementNameWriteCount = 0;
+                                    }
+                                    else // it's following a < sign. End element. Since we are not in the wanted element, don't care about this element.
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    break;
+                                default:
+                                    elementNameBuffer[elementNameWriteCount] = c;
+                                    elementNameWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.Attribute:// Attribute only exis in the StartElement. 
+                            switch (c)
+                            {
+                                case '=': // end of attribute name
+                                    if (attributeBuffer[0] == 'r' && attrWriteCount == 1)// found the Reference attribute
+                                    {
+                                        // Will read the attribute value
+                                        locationType = ReaderLocationType.AttributeValue;
+                                    }
+                                    attrWriteCount = 0;
+                                    break;
+                                case ' ': // end of an attribute. Another attribute coming.
+                                    attrWriteCount = 0;
+                                    break;
+                                case '/': // end of attribute and the whole element. Empty cell?
+                                    throw new InvalidDataException("The cell does not contain Reference Attribute.\n" + row);
+                                case '>': // end of attribute and start element. Should not get here
+                                    throw new InvalidDataException("The cell does not contain Reference Attribute.\n" + row);
+                                default:
+                                    attributeBuffer[attrWriteCount] = c;
+                                    attrWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.AttributeValue:
+                            switch (c)
+                            {
+                                case '\"':
+                                    if (attrWriteCount > 0)//finished reading the reference attribute. Should not get here, there should be a number in the reference part, which cause isInWantedCell = true.
+                                    {
+                                        throw new InvalidDataException("The cell contains invalid Reference Attribute.\n" + row);
+                                    }
+                                    break;
+                                case ' ':
+                                case '/':
+                                case '>': //should not see these.
+                                    throw new InvalidDataException("The cell contains invalid Reference Attribute.\n" + row);
+                                default:
+                                    if (c<='9') // end of column reference
+                                    {
+                                        int currentColNum = ConvertColRef(new string(attributeBuffer, 0, attrWriteCount));
+                                        while(currentColNum > colNumber) // the requested colRef or colNum is not found. Later columns has showed up.
+                                        {
+                                            // write NaN to the result array, and continue to the next one
+                                            result[resultCount] = Single.NaN;
+                                            resultCount++;
+                                            if (resultCount == colRef.Count) // found all items requested by colRef
+                                                return;
+                                            if (String.IsNullOrEmpty(colRef[resultCount]))
+                                            {
+                                                for (int j = resultCount; j < colRef.Count; j++)
+                                                    result[j] = Single.NaN;
+                                                return;
+                                            }
+                                            colNumber = ConvertColRef(colRef[resultCount]); // this is the next wanted colRef
+                                            isInWantedCell = false;
+                                        }
+                                        if (currentColNum == colNumber) // this is the column we need
+                                        {
+                                            isInWantedCell = true;
+                                        }
+                                        // If is not the column we need, switch back to StartOfSearch
+                                        attrWriteCount = 0;
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    else // still reading column reference
+                                    {
+                                        attributeBuffer[attrWriteCount] = c;
+                                        attrWriteCount++;
+                                    }
+                                    break;
+                            }
+                            break;
+                        default:
+                            throw new InvalidDataException("Fail to process row.\n" + row);
+                    }
+                }
+            }
+            // If we didn't return before the for loop ends, it means we finished reading all chars in the row and didn't find all items
+            // will write NaN to the rest
+            for (int i = resultCount; i < colRef.Count; i++)
+                result[i] = Single.NaN;
+        }
+
+        /// <summary>
+        /// Convert a A1 style column reference (A, B, ... Z, AA, AB, ..., ZZ,...) into a integer corresponding to the column number
+        /// "A" => 1, "B" => 2, "Z" => 26, "AA" => 27
+        /// </summary>
+        /// <param name="colRef">A column reference in A1 style. No number is allowed.</param>
+        /// <returns>The column number corresponding to the column reference.</returns>
+        public static int ConvertColRef(string colRef)
+        {
+            int result = 0, i;
+            for ( i = 0; i < colRef.Length; i++)
+                result += (colRef[i] - 64) * (int)Math.Pow(26, colRef.Length-i-1);
+            return result;
         }
 
         private enum ReaderLocationType {StartOfSearch, StartElement, Attribute, AttributeValue, Text, EndElement, EndOfFile }
