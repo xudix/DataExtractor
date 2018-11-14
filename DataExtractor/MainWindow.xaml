@@ -70,5 +70,13 @@
         <Button Name="exportButton" Grid.Column="5" Grid.Row="4" Margin="0,4,0,0" Click="ExportButton_Click"> Export </Button>
         <Button Name="plotButton" Grid.Column="6" Grid.Row="4" Margin="4,4,0,0" Click="PlotButton_Click">  Plot  </Button>
 
+        <Label Grid.Row="4" Grid.Column="0" HorizontalAlignment="Left">Data Interval</Label>
+        <TextBox x:Name="intervalInput" Grid.Row="4" Grid.Column="1"
+                 Text="{Binding Interval}" Margin="0,4,0,0"></TextBox>
+
+        <Label Grid.Row="4" Grid.Column="3" HorizontalAlignment="Left">Resolution</Label>
+        <TextBox x:Name="resolutionInput" Grid.Row="4" Grid.Column="4"
+                 Text="{Binding Resolution}" RenderTransformOrigin="0.506,0.996" Margin="0,4,172,0"></TextBox>
+
     </Grid>
 </Window>
