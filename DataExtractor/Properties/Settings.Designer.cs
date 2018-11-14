@@ -78,5 +78,27 @@ namespace DataExtractor.Properties {
                 this["FilePath"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public int Interval {
+            get {
+                return ((int)(this["Interval"]));
+            }
+            set {
+                this["Interval"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public int Resolution {
+            get {
+                return ((int)(this["Resolution"]));
+            }
+            set {
+                this["Resolution"] = value;
+            }
+        }
     }
 }
