@@ -48,8 +48,7 @@ namespace DataExtractor
         // It notifies UI to update content after the back-end data is changed by program
         public event PropertyChangedEventHandler PropertyChanged;
 
-        //private TextBoxData tagBoxData = new TextBoxData("SelectedTags");
-        //private TextBoxData fileBoxData = new TextBoxData("SelectedFiles");
+        private List<Window> plotWindows = new List<Window>();
 
         public MainWindow()
         {
