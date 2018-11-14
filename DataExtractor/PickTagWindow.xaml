@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DataExtractor"
         mc:Ignorable="d"
-        Title="Select Tags" Height="400" Width="250">
+        Title="Select Tags" Height="300" Width="200">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition/>

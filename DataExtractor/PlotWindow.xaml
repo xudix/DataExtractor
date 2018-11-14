@@ -77,25 +77,25 @@
                 <Line x:Name="CursorLine1" Grid.Column="1" Grid.Row="1" 
                        Stroke="Red" StrokeThickness="1" MouseMove="Chart_MouseMove" X1="{Binding Cursor1X}" X2="{Binding Cursor1X}"
                        >
-                    <Line.Y2>
-                        <MultiBinding Converter="{StaticResource CursorHeightCalc}">
-                            <Binding ElementName="Chart" Path="ActualHeight"/>
-                            <Binding ElementName="XAxis" Path="ActualHeight"/>
-                        </MultiBinding>
-                    </Line.Y2>
-                    <!--Most events at the chart will have to be added for the ZoomBox rectangle. 
-                    Otherwise the program may not respond to the mouseup event-->
-                    <Line.Style>
-                        <Style TargetType="Line">
-                            <Setter Property="Visibility" Value="Visible"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsZoomDrawing}" Value="True">
-                                    <Setter Property="Visibility" Value="Hidden"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Line.Style>
-                </Line>
+                <Line.Y2>
+                    <MultiBinding Converter="{StaticResource CursorHeightCalc}">
+                        <Binding ElementName="Chart" Path="ActualHeight"/>
+                        <Binding ElementName="XAxis" Path="ActualHeight"/>
+                    </MultiBinding>
+                </Line.Y2>
+                <!--Most events at the chart will have to be added for the ZoomBox rectangle. 
+                Otherwise the program may not respond to the mouseup event-->
+                <Line.Style>
+                    <Style TargetType="Line">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsZoomDrawing}" Value="True">
+                                <Setter Property="Visibility" Value="Hidden"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Line.Style>
+            </Line>
             </ContentControl>
             <!--TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ZoomBoxWidth}"/>
             <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ZoomBoxHeight}"/-->
