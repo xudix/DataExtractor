@@ -44,7 +44,7 @@
             <ContentControl Grid.Column="1" Grid.Row="1" MouseMove="Chart_MouseMove" Background="Transparent" />
             <lvc:CartesianChart x:Name="Chart" Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
-                            MouseMove="Chart_MouseMove" Background="Transparent">
+                            MouseMove="Chart_MouseMove" Background="Transparent" >
                 <lvc:CartesianChart.ChartLegend>
                     <StaticResource ResourceKey="LegendWithValues"/>
                 </lvc:CartesianChart.ChartLegend>

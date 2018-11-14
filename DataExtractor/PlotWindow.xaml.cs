@@ -538,13 +538,19 @@ namespace DataExtractor
         {
             extractedData.WriteToFile(StartDateTime, EndDateTime, this, "csv");
         }
-        private void ExportButton2_Click(object sender, RoutedEventArgs e)
-        {
-            extractedData.WriteToFile_PipeLine(StartDateTime, EndDateTime, this, "csv");
-        }
+        //private void ExportButton2_Click(object sender, RoutedEventArgs e)
+        //{
+        //    extractedData.WriteToFile_PipeLine(StartDateTime, EndDateTime, this, "csv");
+        //}
 
         private void Chart_MouseMove(object sender, MouseEventArgs e)
         {
+            // Simply moving the mouse in the chart. Will move the cursor
+            Cursor1X = e.GetPosition(Chart).X;
+            if (Cursor1X > Chart.ActualWidth - Chart.ChartLegend.ActualWidth)
+                Cursor1X = Chart.ActualWidth - Chart.ChartLegend.ActualWidth;
+            //Cursor1Margin = new Thickness(position, 0, Chart.ActualWidth - position - 1, XAxis.ActualHeight);
+            UpdateLegendValues(Chart.ConvertToChartValues(new Point(Cursor1X, 0)).X);
             //RawPoint = e.GetPosition(Chart);
             //ConvertedPoint = Chart.ConvertToChartValues(RawPoint);
 
@@ -606,12 +612,7 @@ namespace DataExtractor
                 }
                 else
                 {
-                    // Simply moving the mouse in the chart. Will move the cursor
-                    Cursor1X = e.GetPosition(Chart).X;
-                    if (Cursor1X > Chart.ActualWidth - Chart.ChartLegend.ActualWidth)
-                        Cursor1X = Chart.ActualWidth - Chart.ChartLegend.ActualWidth;
-                    //Cursor1Margin = new Thickness(position, 0, Chart.ActualWidth - position - 1, XAxis.ActualHeight);
-                    UpdateLegendValues(Chart.ConvertToChartValues(new Point(Cursor1X, 0)).X);
+                    
                 }
                     
             }

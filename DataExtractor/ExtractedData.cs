@@ -1,5 +1,4 @@
-﻿using LiveCharts;
-using LiveCharts.Wpf;
+﻿
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,9 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Media;
+using System.IO.Compression;
+using System.Threading.Tasks;
 
 namespace DataExtractor
 {
@@ -94,7 +93,7 @@ namespace DataExtractor
             IList<string> dateList = Regex.Split(dateStr, @"[\W_]+").Where(s => s != "").ToList();
 
             int year, month, day;
-            switch (dateList.Count())
+            switch (dateList.Count)
             {
                 case 1: // There's only one element in dateIE. dateStr should be a pure digit string
                     dateStr = dateList[0];
@@ -451,7 +450,8 @@ namespace DataExtractor
             RawData = new List<float[]>(tagList.Length);
             // use a temporary array to store the data obtained from each line
             float[] dataOfOnePoint = new float[tagList.Length];
-            
+            DateTime dateTime1;
+
             // A string that represents a line from the csv file. line1 and line2 are the first two lines.
             // Reading the first two lines allows the method to determine the time interval between the two lines, which is used to size the arrays
             string line, titleLine, line1, line2;
@@ -476,219 +476,326 @@ namespace DataExtractor
             // i is the counter used in for loops
             int i;
 
-            // In this method, we will use long integers (Int64) to represent the date and time. It encodes the time as yyyyMMddHHmmss
-            long startTimeInt = Int64.Parse(startDateTime.ToString("yyyyMMddHHmmss"));
-            long endTimeInt = Int64.Parse(endDateTime.ToString("yyyyMMddHHmmss"));
+            // The tagList cannot contain "Time". 
+            for (i = 0; i < tagList.Length; i++)
+                if (tagList[i] == "Time")
+                {
+                    tagList[i] = "_Time_";
+                    MessageBox.Show("\"Time\" is not an allowed tag.");
+                }
+                    
+
 
             foreach (FileRecord record in fileRecords)
             {
-                using (StreamReader sr = new StreamReader(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                Console.WriteLine("Processing data file " + record.fileName);
+                // Excel files. Use OpenXML library to handle
+                if (record.fileType.ToLower() == "xlsx")
                 {
-                    Console.WriteLine("Processing data file " + record.fileName);
-                    switch (record.fileType.ToLower())
-                    {
-                        case "csv":
-                            delimiter = ',';
-                            break;
-                        case "txt":
-                            delimiter = '\t';
-                            break;
-                        default:
-                            throw new ArgumentException("Unsupported File Type: " + record.fileType);
+                    // strIndexOfTags contains the index (the order they are found in shared sting table) of requested tags
+                    // refOfTags contains the column references (in worksheet) of the requested tags
+                    // both strIndexOfTags and refOfTags are sorted in the order of the tags occuring in the xml file
+                    // "positions" records the position of a tag in the tagList
+                    string[] refOfTags = new string[tagList.Length];
+                    int[] positions = new int[tagList.Length];
+                    Task parseRowTask = Task.Run(()=> { });
+                    //List<RefWithPosition> strIndexOfTags = new List<RefWithPosition>(tagList.Length);
 
-                    }
-                    // read the first line that contains the tag names
-                    titleLine = sr.ReadLine();
-                    splitTitleLine = titleLine.Split(new char[] { delimiter });
-                    // number of columns in the csv file
-                    nColumn = splitTitleLine.Length;
-
-                    // Find where the tags are located
-                    for (i = 0; i < tagList.Length; i++)
+                    // Create SpreadsheetDocument object to represent the excel file
+                    using (ZipArchive xlsxFile = new ZipArchive(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                     {
-                        int index = Array.FindIndex(splitTitleLine, (string s) => s == tagList[i]);
-                        if (index == -1) // The tag is not found
+                        // Get the header (first row) of the data file
+                        XlsxTool.HeaderWithColRef headerWithRef = XlsxTool.GetHeaderWithColReference(xlsxFile);
+                        // Find the location (column reference) of all the requested  tags
+                        int index = 0;
+                        int tagCount = 0;
+                        string currentTag;
+                        for (index =0; index<headerWithRef.header.Length; index++)
                         {
-                            MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + record.fileName + "\".");
-                            indexOfTags.Add(new IndexWithPosition(Int32.MaxValue, i));
-                        }
-                        else
-                            indexOfTags.Add(new IndexWithPosition(index, i));
-                    }
-                    // Sort the List indexOfTags based on the index. Thus, we can get the value of the tags one by one as we go through one line of the data file
-                    indexOfTags.Sort();
-
-                    // Read the first two lines, and figure out the time interval between two lines in the data file
-                    line1 = sr.ReadLine();
-                    line2 = sr.ReadLine();
-                    // if the file contain a "date" or ";date" column, the method for translating the datetime is different
-                    if (splitTitleLine[0].ToLower() == "date" || splitTitleLine[0].ToLower() == ";date")
-                        dateTimeFromStr = Str2DateTime_1;
-                    else // There's no date column. The date is included in the Time column
-                        dateTimeFromStr = Str2DateTime_2;
-                    DateTime dateTime1 = dateTimeFromStr(line1, delimiter);
-                    if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
-                        break;
-                    DateTime dateTime2 = dateTimeFromStr(line2, delimiter);
-                    // In some data files, the first line has the same time stamp with the second. 
-                    /* Example:
-                     * <data file>
-                     * Date, Time, tags...
-                     * 09/01/2018, 0:00:00,, data...   <- Discard this line
-                     * 09/01/2018, 0:00:00,, data...   <- Make this line1
-                     * 09/01/2018, 0:00:01,, data...   <- Make this line2
-                     * ...
-                     * </data file>
-                     */
-                    if (dateTime1 == dateTime2)
-                    {
-                        line1 = line2;
-                        line2 = sr.ReadLine();
-                        dateTime1 = dateTimeFromStr(line1, delimiter);
-                        dateTime2 = dateTimeFromStr(line2, delimiter);
-                    }
-                    // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
-                    // Try to estimate the number of points to be extracted. Initialize array accordingly
-                    // Then create the array for the data
-                    if (RawData.Count == 0)
-                    {
-                        nPoints = (int)((endDateTime - dateTime1).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
-                        // if for any reason nPoints is not positive, there's something wrong and the program will abort here
-                        if (nPoints <= 0)
-                            throw new ArgumentException("Number of points is not positive.");
-                        for (i = 0; i < tagList.Length; i++)
-                        {
-                            RawData.Add(new float[nPoints]);
-                            // //Considering that it should only take a few MBs to store all the data, there's no need to save on the array
-                            // //Go over the whole list indexOfTags, find the corresponding record based on the Position, then determine if the tag is found in the file.
-                            //foreach(IndexWithPosition tagRecord in indexOfTags)
-                            //{
-                            //    // located tag record
-                            //    if (tagRecord.Position == i)
-                            //    {
-                            //        if(tagRecord.Index == Int32.MaxValue) // If the Index is Int32.MaxValue, then this tag is not found. Add an empty array to the List data
-                            //            data.Add(new float[0]); // 
-                            //        else
-                            //            data.Add(new float[nPoints]);
-                            //    }
-                            //}
-                        }
-                        DateTimes = new DateTime[nPoints];
-                        //DateTimeStrs = new string[nPoints];
-                        if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
-                        {
-                            DateTimes[pointCount] = dateTime1;
-                            //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
-                            ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
-                            for (i = 0; i < indexOfTags.Count; i++)
-                                RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
-                            skipCounter = 1;
-                            pointCount++;
-                        }
-                    }
-                    // If it's not the first file. 
-                    // Need to check if the time stamp of line 1 of this file is the same as that of the previous file. 
-                    // In a lot of data files, the last time stamp of the previouis file is the same as the first two 
-                    // time stamps of the second file.
-                    /* Example:
-                     * <First file>
-                     * ...
-                     * 09/01/2018, 0:00:00, data....   <- Written in output data previously. Need to be overriden
-                     * </First file>
-                     * 
-                     * <Second file>
-                     * Date, Time, tags...
-                     * 09/01/2018, 0:00:00,, data...   <- This line would be discarded in previous steps
-                     * 09/01/2018, 0:00:00,, data...   <- Only keep this line
-                     * 09/01/2018, 0:00:01,, data...
-                     * ...
-                     * </Second file>
-                     */
-                    // In this case, will only keep the last value with same time stamp
-                    else if (dateTime1 >= startDateTime)
-                    {
-                        // Time stamp is after startDateTime. Take the point
-                        if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
-                        {
-                            // New time stamp is same as previous
-                            // override the previous data by this one
-                            pointCount--;
-                            ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
-                            for (i = 0; i < indexOfTags.Count; i++)
-                                RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
-                            pointCount++;
-                            skipCounter = 1;
-                        }
-                        else// New time stamp is different from previous
-                        {
-                            // Perform normal checks
-                            if (skipCounter == interval) // will take the point. Otherwise, will skip
+                            // for each tag, check if it matches a requested tag
+                            currentTag = headerWithRef.header[index];
+                            for (i = 0; i < tagList.Length; i++)
                             {
-                                if (pointCount == nPoints) // if for some reason the array is not large enough
+                                if (tagList[i] == currentTag)
                                 {
-                                    // double the size of the array
-                                    nPoints *= 2;
-                                    for (i = 0; i < indexOfTags.Count; i++)
+                                    refOfTags[tagCount] = headerWithRef.colRef[index];
+                                    positions[tagCount] = i;
+                                    tagCount++;
+                                    break;
+                                }
+                            }
+                            // found all tags. no need to continue reading excel
+                            if (tagCount == tagList.Length)
+                                break;
+                        }
+                        // No need to sort indexOfTags anymore, as all items are added in the ascending order of column references
+                        // in case some tags does not exist
+                        if (tagCount < tagList.Length)
+                        {
+                            // Check which tag does not exist. Go over all tags
+                            for (i = 0; i < tagList.Length; i++)
+                            {
+                                // for each tag, see if the corresponding Position exist in positions
+                                for (int j = 0; j < tagCount; j++)
+                                {
+                                    if (positions[j] == i)
                                     {
-                                        Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
-                                        float[] temp = new float[nPoints];
-                                        Array.Copy(RawData[i], temp, pointCount);
-                                        RawData[i] = temp;
+                                        // The ith tag is found in indexOfTags
+                                        break;
+                                    }
+                                    else if (j == tagCount - 1) // hit the last thing in positions, and tag is not found.
+                                    {
+                                        // Add one entry to strIndexOfTags and positions. done with this tag
+                                        MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + record.fileName + "\".");
+                                        positions[tagCount] = i;
+                                        tagCount++;
+                                        break;
                                     }
                                 }
+                                if (tagCount == tagList.Length)
+                                    break;
+                            }
+                        }
+                        // Start reading the data
+                        //using (StreamReader worksheetReader = new StreamReader(xlsxFile.GetEntry(@"xl/worksheets/sheet1.xml").Open(), Encoding.UTF8, true, 10485760))
+                        using (XlsxReader worksheetReader = new XlsxReader(xlsxFile.GetEntry(@"xl/worksheets/sheet1.xml").Open(), 10485760))
+                        {
+                            //string row = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;// this will be the header row
+                            //row = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;
+                            string row = worksheetReader.GetNextRow(); // this will be the header row
+                            row = worksheetReader.GetNextRow();
+                            // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
+                            // Try to estimate the number of points to be extracted. Initialize array accordingly
+                            // Then create the array for the data
+                            if (RawData.Count == 0)
+                            {
+                                dateTime1 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row, "A"));
+                                if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                    break;
+                                //string row2 = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;
+                                string row2 = worksheetReader.GetNextRow();
+                                DateTime dateTime2 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row2, "A"));
+                                // In some data files, the first line has the same time stamp with the second. 
+                                while (dateTime1 == dateTime2)
+                                {
+                                    row = row2;
+                                    //row2 = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;
+                                    row2 = worksheetReader.GetNextRow();
+                                    dateTime2 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row2, "A"));
+                                }
+                                nPoints = (int)((endDateTime - dateTime1).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
+                                // if for any reason nPoints is not positive, there's something wrong and the program will abort here
+                                if (nPoints <= 0)
+                                    throw new ArgumentException("Number of points is not positive.");
+                                // Initialize the result arrays
+                                for (i = 0; i < tagList.Length; i++)
+                                {
+                                    RawData.Add(new float[nPoints]);
+                                }
+                                DateTimes = new DateTime[nPoints];
+                                if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
+                                {
+                                    DateTimes[pointCount] = dateTime1;
+                                    XlsxTool.GetFloatsFromRow(row, refOfTags, ref dataOfOnePoint);
+                                    for (i = 0; i < positions.Length; i++)
+                                        RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                    skipCounter = 1;
+                                    pointCount++;
+                                }
+                                row = row2;
+                            }// At this point, if it's the first file, the streamreader is at the 3rd row
+                            // If it's not the first file, the streamreader is at the 2nd row
+                            do
+                            {
+                                dateTime1 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row, "A"));
+                                if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                    break;
+                                else if (dateTime1 >= startDateTime) // Data point is needed
+                                {
+                                    
+                                    if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
+                                    {
+                                        // New time stamp is same as previous
+                                        // override the previous data by this one
+                                        parseRowTask.Wait();
+                                        parseRowTask = Task.Run(() =>
+                                        {
+                                            pointCount--;
+                                            XlsxTool.GetFloatsFromRow(row, refOfTags, ref dataOfOnePoint);
+                                            for (i = 0; i < positions.Length; i++)
+                                                RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                            pointCount++;
+                                            skipCounter = 1;
+
+                                        });
+
+                                    }
+                                    else
+                                    {
+                                        if (skipCounter == interval) // will take the point. Otherwise, will skip
+                                        {
+                                            parseRowTask.Wait();
+                                            parseRowTask = Task.Run(() =>
+                                            {
+                                                if (pointCount == nPoints) // if for some reason the array is not large enough
+                                                {
+                                                    // double the size of the array
+                                                    nPoints *= 2;
+                                                    Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
+                                                    for (i = 0; i < indexOfTags.Count; i++)
+                                                    {
+                                                        float[] temp = new float[nPoints];
+                                                        Array.Copy(RawData[i], temp, pointCount);
+                                                        RawData[i] = temp;
+                                                    }
+                                                    DateTime[] tempDateTime = new DateTime[nPoints];
+                                                    Array.Copy(DateTimes, tempDateTime, pointCount);
+                                                    DateTimes = tempDateTime;
+                                                }
+                                                DateTimes[pointCount] = dateTime1;
+                                                //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                                XlsxTool.GetFloatsFromRow(row, refOfTags, ref dataOfOnePoint);
+                                                for (i = 0; i < positions.Length; i++)
+                                                    RawData[positions[i]][pointCount] = dataOfOnePoint[i];
+                                                pointCount++;
+                                                skipCounter = 1;
+                                            });
+                                        }
+                                        else
+                                            skipCounter++;
+                                    }
+                                }
+                                row = worksheetReader.GetNextRow();
+                            } while (row.Length > 0);
+                            //while ((row = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text).Length > 0);
+                            if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                break;
+                        }
+                    }
+                }
+                else // csv or txt file. Use own algorithm. 
+                {
+                    using (StreamReader sr = new StreamReader(new FileStream(record.fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                    {
+                        switch (record.fileType.ToLower())
+                        {
+                            case "csv":
+                                delimiter = ',';
+                                break;
+                            case "txt":
+                                delimiter = '\t';
+                                break;
+                            default:
+                                throw new ArgumentException("Unsupported File Type: " + record.fileType);
+
+                        }
+                        // read the first line that contains the tag names
+                        titleLine = sr.ReadLine();
+                        splitTitleLine = titleLine.Split(new char[] { delimiter });
+                        // number of columns in the csv file
+                        nColumn = splitTitleLine.Length;
+
+                        // Find where the tags are located
+                        for (i = 0; i < tagList.Length; i++)
+                        {
+                            int index = Array.FindIndex(splitTitleLine, (string s) => s == tagList[i]);
+                            if (index == -1) // The tag is not found
+                            {
+                                MessageBox.Show("Cannot find tag \"" + tagList[i] + "\" in data file \"" + record.fileName + "\".");
+                                indexOfTags.Add(new IndexWithPosition(Int32.MaxValue, i));
+                            }
+                            else
+                                indexOfTags.Add(new IndexWithPosition(index, i));
+                        }
+                        // Sort the List indexOfTags based on the index. Thus, we can get the value of the tags one by one as we go through one line of the data file
+                        indexOfTags.Sort();
+
+                        // Read the first two lines, and figure out the time interval between two lines in the data file
+                        line1 = sr.ReadLine();
+                        // if the file contain a "date" or ";date" column, the method for translating the datetime is different
+                        if (splitTitleLine[0].ToLower() == "date" || splitTitleLine[0].ToLower() == ";date")
+                            dateTimeFromStr = Str2DateTime_1;
+                        else // There's no date column. The date is included in the Time column
+                            dateTimeFromStr = Str2DateTime_2;
+
+                        // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
+                        // Try to estimate the number of points to be extracted. Initialize array accordingly
+                        // Then create the array for the data
+                        if (RawData.Count == 0)
+                        {
+                            dateTime1 = dateTimeFromStr(line1, delimiter);
+                            if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                break;
+                            line2 = sr.ReadLine();
+                            DateTime dateTime2 = dateTimeFromStr(line2, delimiter);
+                            // In some data files, the first line has the same time stamp with the second. 
+                            /* Example:
+                             * <data file>
+                             * Date, Time, tags...
+                             * 09/01/2018, 0:00:00,, data...   <- Discard this line
+                             * 09/01/2018, 0:00:00,, data...   <- Make this line1
+                             * 09/01/2018, 0:00:01,, data...   <- Make this line2
+                             * ...
+                             * </data file>
+                             */
+                            while (dateTime1 == dateTime2)
+                            {
+                                line1 = line2;
+                                line2 = sr.ReadLine();
+                                dateTime1 = dateTimeFromStr(line1, delimiter);
+                                dateTime2 = dateTimeFromStr(line2, delimiter);
+                            }
+                            nPoints = (int)((endDateTime - dateTime1).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
+                            // if for any reason nPoints is not positive, there's something wrong and the program will abort here
+                            if (nPoints <= 0)
+                                throw new ArgumentException("Number of points is not positive.");
+                            for (i = 0; i < tagList.Length; i++)
+                            {
+                                RawData.Add(new float[nPoints]);
+                                // //Considering that it should only take a few MBs to store all the data, there's no need to save on the array
+                                // //Go over the whole list indexOfTags, find the corresponding record based on the Position, then determine if the tag is found in the file.
+                                //foreach(IndexWithPosition tagRecord in indexOfTags)
+                                //{
+                                //    // located tag record
+                                //    if (tagRecord.Position == i)
+                                //    {
+                                //        if(tagRecord.Index == Int32.MaxValue) // If the Index is Int32.MaxValue, then this tag is not found. Add an empty array to the List data
+                                //            data.Add(new float[0]); // 
+                                //        else
+                                //            data.Add(new float[nPoints]);
+                                //    }
+                                //}
+                            }
+                            DateTimes = new DateTime[nPoints];
+                            if (dateTime1 >= startDateTime) // Time stamp is after startDateTime. Take the point
+                            {
                                 DateTimes[pointCount] = dateTime1;
                                 //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                 ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
                                 for (i = 0; i < indexOfTags.Count; i++)
                                     RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
-                                pointCount++;
                                 skipCounter = 1;
+                                pointCount++;
                             }
-                            else
-                                skipCounter++;
+                            line = line2;
                         }
-                    }
-                    line = line2;
-                    // start processing the data file. 
-                    do
-                    {
-                        dateTime1 = dateTimeFromStr(line, delimiter);
-                        if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
-                            break;
-                        else if (dateTime1 >= startDateTime)
+                        else
+                            line = line1;
+                        // If it's the first file, now the StreamReader will be at the 3rd data row, line is the second line
+                        // if it's not the first file, now the StreamReader will be at the 2nd data row, line is the first line
+                        // start processing the data file. 
+                        do
                         {
-                            if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
+                            dateTime1 = dateTimeFromStr(line, delimiter);
+                            if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                                break;
+                            else if (dateTime1 >= startDateTime)
                             {
-                                // New time stamp is same as previous
-                                // override the previous data by this one
-                                pointCount--;
-                                ReadStrUntil(line1, delimiter, indexOfTags, ref dataOfOnePoint);
-                                for (i = 0; i < indexOfTags.Count; i++)
-                                    RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
-                                pointCount++;
-                                skipCounter = 1;
-                            }
-                            else
-                            {
-                                if (skipCounter == interval) // will take the point. Otherwise, will skip
+                                if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
                                 {
-                                    if (pointCount == nPoints) // if for some reason the array is not large enough
-                                    {
-                                        // double the size of the array
-                                        nPoints *= 2;
-                                        Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
-                                        for (i = 0; i < indexOfTags.Count; i++)
-                                        {
-                                            float[] temp = new float[nPoints];
-                                            Array.Copy(RawData[i], temp, pointCount);
-                                            RawData[i] = temp;
-                                        }
-                                        DateTime[] tempDateTime = new DateTime[nPoints];
-                                        Array.Copy(DateTimes, tempDateTime, pointCount);
-                                        DateTimes = tempDateTime;
-                                    }
-                                    DateTimes[pointCount] = dateTime1;
-                                    //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                    // New time stamp is same as previous
+                                    // override the previous data by this one
+                                    pointCount--;
                                     ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
                                     for (i = 0; i < indexOfTags.Count; i++)
                                         RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
@@ -696,15 +803,43 @@ namespace DataExtractor
                                     skipCounter = 1;
                                 }
                                 else
-                                    skipCounter++;
+                                {
+                                    if (skipCounter == interval) // will take the point. Otherwise, will skip
+                                    {
+                                        if (pointCount == nPoints) // if for some reason the array is not large enough
+                                        {
+                                            // double the size of the array
+                                            nPoints *= 2;
+                                            Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
+                                            for (i = 0; i < indexOfTags.Count; i++)
+                                            {
+                                                float[] temp = new float[nPoints];
+                                                Array.Copy(RawData[i], temp, pointCount);
+                                                RawData[i] = temp;
+                                            }
+                                            DateTime[] tempDateTime = new DateTime[nPoints];
+                                            Array.Copy(DateTimes, tempDateTime, pointCount);
+                                            DateTimes = tempDateTime;
+                                        }
+                                        DateTimes[pointCount] = dateTime1;
+                                        //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
+                                        ReadStrUntil(line, delimiter, indexOfTags, ref dataOfOnePoint);
+                                        for (i = 0; i < indexOfTags.Count; i++)
+                                            RawData[indexOfTags[i].Position][pointCount] = dataOfOnePoint[i];
+                                        pointCount++;
+                                        skipCounter = 1;
+                                    }
+                                    else
+                                        skipCounter++;
+                                }
                             }
-                        }
 
-                    } while ((line = sr.ReadLine()) != null);
-                    if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
-                        break;
-                    // clear the indexOfTags so that it does not affect the next file
-                    indexOfTags.Clear();
+                        } while ((line = sr.ReadLine()) != null);
+                        if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
+                            break;
+                        // clear the indexOfTags so that it does not affect the next file
+                        indexOfTags.Clear();
+                    }
                 }
             }
             // if for some reason the size of the array is larger than actual number of points
@@ -922,8 +1057,7 @@ namespace DataExtractor
             // This overload method do the same for every number in List nth
             // The caller should guarentee that: 
             // 1. The List nth is sorted in ascending order
-            // 2. The List result is at least as large as the List nth
-            // 3. The array in result should be long enough to take all fileds specified by "nth"
+            // 2. The array in result should be long enough to take all fileds specified by "nth"
             int endCount = 0; // the number of "end" seen
             int itemCount = 0; // number of items completed in the List nth
             int writeCount = 0; // number of chars written to cResult
@@ -940,49 +1074,217 @@ namespace DataExtractor
                     itemCount++;
                 } while (itemCount < nth.Count);
             }
-            do
+            else
             {
-                c = str[readCount];
-                readCount++;
-                if (c == end) // see a end char
+                do
                 {
-                    endCount++;
-                    if (endCount == nth[itemCount].Index + 1) // found the nth end char. convert the result to string then float, and add to the array
+                    c = str[readCount];
+                    readCount++;
+                    if (c == end) // see a end char
                     {
-                        result[itemCount] = Single.Parse(new string(cResult, 0, writeCount));
-                        // then start over for the next item in nth
-                        writeCount = 0;
-                        itemCount++;
-                        if (itemCount == nth.Count)
-                            break;
-                        // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
-                        // Stop reading, and write NaN to return array
-                        if (nth[itemCount].Index == Int32.MaxValue)
+                        endCount++;
+                        if (endCount == nth[itemCount].Index + 1) // found the nth end char. convert the result to string then float, and add to the array
                         {
-                            do
+                            result[itemCount] = Single.Parse(new string(cResult, 0, writeCount));
+                            // then start over for the next item in nth
+                            writeCount = 0;
+                            itemCount++;
+                            if (itemCount == nth.Count)
+                                break;
+                            // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+                            // Stop reading, and write NaN to return array
+                            if (nth[itemCount].Index == Int32.MaxValue)
                             {
-                                result[itemCount] = Single.NaN;
-                                itemCount++;
-                            } while (itemCount < nth.Count);
-                            break;
+                                do
+                                {
+                                    result[itemCount] = Single.NaN;
+                                    itemCount++;
+                                } while (itemCount < nth.Count);
+                                break;
+                            }
                         }
-                    }
 
-                }
-                else if (endCount == nth[itemCount].Index) // not a end char, and it's between the (n-1)th and nth end char
-                {
-                    cResult[writeCount] = c;
-                    writeCount++;
-                    if (writeCount == cResult.Length)
-                        Array.Resize(ref cResult, cResult.Length * 2);
-                }
-            } while (readCount < str.Length);
+                    }
+                    else if (endCount == nth[itemCount].Index) // not a end char, and it's between the (n-1)th and nth end char
+                    {
+                        cResult[writeCount] = c;
+                        writeCount++;
+                        if (writeCount == cResult.Length)
+                            Array.Resize(ref cResult, cResult.Length * 2);
+                    }
+                } while (readCount < str.Length);
+            }
         }
 
         // Parse the datetime string into DateTime struct. 
         // Assume that in the string date and time is separated by a space
         public static DateTime ParseDateTime(string datetime) =>
             ParseDate(ReadStrUntil(datetime, ' ')) + ParseTime(ReadStrUntil(datetime, ' ', 1));
+
+        //// move xmlReader to next element of "type" that is a start element
+        //private static void XmlFindNext(OpenXmlReader xmlReader, Type type)
+        //{
+        //    //do
+        //    //{
+        //    //    if(!xmlReader.Read()) break;
+        //    //} while (xmlReader.ElementType != type || !xmlReader.IsStartElement);
+        //    while (xmlReader.Read())
+        //    {
+        //        if (xmlReader.ElementType == type && xmlReader.IsStartElement)
+        //            break;
+        //    }
+        //}
+
+        /// <summary>
+        /// Convert the A1 style cell reference to the column reference, i.e. the letters corresponding to the column
+        /// </summary>
+        /// <param name="cellReference">A1 style cell reference</param>
+        /// <returns>The column part of the reference</returns>
+        private static string GetColumnRef(string cellReference)
+        {
+            char[] buffer = new char[3];
+            int writeCount = 0;
+            for(int readCount = 0; readCount < cellReference.Length; readCount++)
+            {
+                if (cellReference[readCount] >= 'A')
+                {
+                    buffer[writeCount] = cellReference[readCount];
+                    writeCount++;
+                }
+                else
+                    break;
+            }
+            return new string(buffer, 0, writeCount);
+        }
+
+        //// Get cell values at given indexes of a Row from the OpenXmlReader
+        //// The indexes come from the Index of every element from nth
+        //// 1. The List colReferences is sorted in ascending order
+        //// 2. The array in result should be long enough to take all fileds specified by "colReferences"
+        //// 3. The reader should be at or before the first NEEDED cell of the Row
+        //private static void GetCellValues(OpenXmlReader reader, string[] colReferences, ref float[] result)
+        //{
+            
+        //    int itemCount = 0;
+        //    string currentRef;
+        //    Cell currentCell;
+        //    // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+        //    // Stop reading, and write NaN to return array
+        //    if (String.IsNullOrEmpty(colReferences[0]))
+        //    {
+        //        do
+        //        {
+        //            result[itemCount] = Single.NaN;
+        //            itemCount++;
+        //        } while (itemCount < colReferences.Length);
+        //    }
+        //    else
+        //    {
+        //        XmlFindNext(reader, typeof(Cell));
+        //        do
+        //        {
+        //            // Found a Cell
+        //            currentCell = (Cell)reader.LoadCurrentElement();
+        //            currentRef = GetColumnRef(currentCell.CellReference);
+        //            // If the index is requested by nth
+        //            if (currentRef == colReferences[itemCount])
+        //            {
+        //                result[itemCount] = Single.Parse(currentCell.CellValue.Text);
+        //                itemCount++;
+        //                // If found all items requested, quit the do loop
+        //                if (itemCount == colReferences.Length)
+        //                    return;
+        //                // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+        //                // Stop reading, and write NaN to return array
+        //                if (String.IsNullOrEmpty(colReferences[itemCount]))
+        //                {
+        //                    do
+        //                    {
+        //                        result[itemCount] = Single.NaN;
+        //                        itemCount++;
+        //                    } while (itemCount < colReferences.Length);
+        //                    return;
+        //                }
+        //            }
+        //        } while (reader.ReadNextSibling());
+        //        // Got to the end of the row. Quit.
+        //        // Should never get here since the method would have returned in the while loop.
+        //        do
+        //        {
+        //            result[itemCount] = Single.NaN;
+        //            itemCount++;
+        //        } while (itemCount < colReferences.Length);
+        //    }
+        //}
+
+        //// Get cell values at given indexes of a Row from the OpenXmlReader
+        //// The indexes come from the Index of every element from nth
+        //// 1. The List colReferences is sorted in ascending order
+        //// 2. The array in result should be long enough to take all fileds specified by "colReferences"
+        //// 3. The reader should be at or before the first NEEDED cell of the Row
+        //private static void GetCellValues2(OpenXmlReader reader, string[] colReferences, ref float[] result)
+        //{
+
+        //    int itemCount = 0;
+        //    // If the current index is Int32.MaxValue, then the upcoming tags are not found in this file.
+        //    // Stop reading, and write NaN to return array
+        //    if (String.IsNullOrEmpty(colReferences[0]))
+        //    {
+        //        do
+        //        {
+        //            result[itemCount] = Single.NaN;
+        //            itemCount++;
+        //        } while (itemCount < colReferences.Length);
+        //    }
+        //    else
+        //    {
+        //        XmlFindNext(reader, typeof(Cell));
+        //        do
+        //        {
+        //            // Get to the end of the row. will quit.
+        //            if (reader.ElementType == typeof(Row))
+        //                break;
+        //            else if (reader.ElementType == typeof(Cell) && reader.IsStartElement)// Found a Cell
+        //            {
+        //                foreach (OpenXmlAttribute attribute in reader.Attributes) // simply take Attributes[0]?
+        //                {
+        //                    if (attribute.LocalName == "r")
+        //                    {
+        //                        if (GetColumnRef(attribute.Value) == colReferences[itemCount]) // found the cell with requested colRef
+        //                        {
+        //                            XmlFindNext(reader, typeof(CellValue)); // replace it by a single reader.Read() call?
+        //                            result[itemCount] = Single.Parse(reader.GetText());
+        //                            itemCount++;
+        //                            // If found all items requested, quit the do loop
+        //                            if (itemCount == colReferences.Length)
+        //                                return;
+        //                            // If the current index is null, then the upcoming tags are not found in this file.
+        //                            // Stop reading, and write NaN to return array
+        //                            if (String.IsNullOrEmpty(colReferences[itemCount]))
+        //                            {
+        //                                do
+        //                                {
+        //                                    result[itemCount] = Single.NaN;
+        //                                    itemCount++;
+        //                                } while (itemCount < colReferences.Length);
+        //                                return;
+        //                            }
+        //                        }
+        //                        break;
+        //                    }
+        //                }
+        //            }
+        //        } while (reader.Read());
+        //        // Got to the end of the row. Quit.
+        //        // Should never get here since the method would have returned in the while loop.
+        //        do
+        //        {
+        //            result[itemCount] = Single.NaN;
+        //            itemCount++;
+        //        } while (itemCount < colReferences.Length);
+        //    }
+        //}
+
 
         // A FileRecord include the file pathname, file type, and start time.
         // The constructor will determine the start time based on the file name.
@@ -1041,6 +1343,24 @@ namespace DataExtractor
 
             public int CompareTo(IndexWithPosition other) =>
                 Index.CompareTo(other.Index);
+        }
+
+        /// <summary>
+        /// This struct is used to record the column reference of cells in Xml file of a tag
+        /// Reference is the column part (letter part) of the CellReference. 
+        /// Position is the position of the tag in TagList
+        /// </summary>
+        private struct RefWithPosition
+        {
+            public string Reference { get; set; }
+            public int Position;
+
+            public RefWithPosition(string reference, int position)
+            {
+                Reference = reference;
+                Position = position;
+            }
+
         }
 
         // Write the extracted data to a file that the user specified
@@ -1119,83 +1439,83 @@ namespace DataExtractor
         // The first task take data from the source, parse it into a string, and put into a BlockingCollection
         // The second task take string from the BlockingCollection and write it into the file
         // Still slower than the single thread version.
-        public void WriteToFile_PipeLine(DateTime startDateTime, DateTime endDateTime, Window owner, string fileType, string defaultPath = "")
-        {
-            string delimiter;
-            int i, j;
-            // filterText is used to define the default file type in the save file dialog
-            string filterText;
-            switch (fileType.ToLower())
-            {
-                case "csv":
-                    delimiter = ",";
-                    filterText = "CSV File (.csv) | *.csv";
-                    break;
-                case "txt":
-                    delimiter = "\t";
-                    filterText = "Text File (.txt)|*.txt";
-                    break;
-                default:
-                    throw new ArgumentException("Unsupported File Type: " + fileType);
+        //public void WriteToFile_PipeLine(DateTime startDateTime, DateTime endDateTime, Window owner, string fileType, string defaultPath = "")
+        //{
+        //    string delimiter;
+        //    int i, j;
+        //    // filterText is used to define the default file type in the save file dialog
+        //    string filterText;
+        //    switch (fileType.ToLower())
+        //    {
+        //        case "csv":
+        //            delimiter = ",";
+        //            filterText = "CSV File (.csv) | *.csv";
+        //            break;
+        //        case "txt":
+        //            delimiter = "\t";
+        //            filterText = "Text File (.txt)|*.txt";
+        //            break;
+        //        default:
+        //            throw new ArgumentException("Unsupported File Type: " + fileType);
 
-            }
-            Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
-            {
-                Title = "Save As New " + fileType + " File",
-                DefaultExt = fileType,
-                Filter = filterText,
-                FileName = "ExtractedData_" + DateTimes[0].ToString("yyyyMMdd-HHmmss"),
-                InitialDirectory = (!String.IsNullOrEmpty(defaultPath)) ? defaultPath : filePath
-            };
+        //    }
+        //    Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog
+        //    {
+        //        Title = "Save As New " + fileType + " File",
+        //        DefaultExt = fileType,
+        //        Filter = filterText,
+        //        FileName = "ExtractedData_" + DateTimes[0].ToString("yyyyMMdd-HHmmss"),
+        //        InitialDirectory = (!String.IsNullOrEmpty(defaultPath)) ? defaultPath : filePath
+        //    };
 
 
-            if (dialog.ShowDialog(owner) == true && dialog.FileNames != null)
-            {
-                var watch = System.Diagnostics.Stopwatch.StartNew();
-                try
-                {
-                    using (var linesToWrite = new BlockingCollection<string>())
-                    {
-                        var parseTask = Task.Run(() =>
-                        {
-                            string line = "Time" + delimiter;
-                            for (i = 0; i < Tags.Length; i++)
-                                line += Tags[i] + delimiter;
-                            linesToWrite.Add(line);
-                            for (j = 0; j < DateTimes.Length; j++)
-                            {
-                                if (DateTimes[j] > endDateTime)
-                                    break;
-                                else if (DateTimes[j] >= startDateTime)
-                                {
-                                    line = "\n" + DateTimes[j].ToString("M/d/yyyy HH:mm:ss") + delimiter;
-                                    for (i = 0; i < RawData.Count; i++)
-                                    {
-                                        line += RawData[i][j] + delimiter;
-                                    }
-                                    linesToWrite.Add(line);
-                                }
-                            }
-                            linesToWrite.CompleteAdding();
-                        });
-                        using (StreamWriter sr = new StreamWriter(dialog.OpenFile(), Encoding.ASCII, 65535))
-                        {
-                            foreach (string line in linesToWrite.GetConsumingEnumerable())
-                                sr.Write(line);
-                            parseTask.Wait();
-                            parseTask.Dispose();
-                        }
-                    }
+        //    if (dialog.ShowDialog(owner) == true && dialog.FileNames != null)
+        //    {
+        //        var watch = System.Diagnostics.Stopwatch.StartNew();
+        //        try
+        //        {
+        //            using (var linesToWrite = new BlockingCollection<string>())
+        //            {
+        //                var parseTask = Task.Run(() =>
+        //                {
+        //                    string line = "Time" + delimiter;
+        //                    for (i = 0; i < Tags.Length; i++)
+        //                        line += Tags[i] + delimiter;
+        //                    linesToWrite.Add(line);
+        //                    for (j = 0; j < DateTimes.Length; j++)
+        //                    {
+        //                        if (DateTimes[j] > endDateTime)
+        //                            break;
+        //                        else if (DateTimes[j] >= startDateTime)
+        //                        {
+        //                            line = "\n" + DateTimes[j].ToString("M/d/yyyy HH:mm:ss") + delimiter;
+        //                            for (i = 0; i < RawData.Count; i++)
+        //                            {
+        //                                line += RawData[i][j] + delimiter;
+        //                            }
+        //                            linesToWrite.Add(line);
+        //                        }
+        //                    }
+        //                    linesToWrite.CompleteAdding();
+        //                });
+        //                using (StreamWriter sr = new StreamWriter(dialog.OpenFile(), Encoding.ASCII, 65535))
+        //                {
+        //                    foreach (string line in linesToWrite.GetConsumingEnumerable())
+        //                        sr.Write(line);
+        //                    parseTask.Wait();
+        //                    parseTask.Dispose();
+        //                }
+        //            }
 
-                    Console.WriteLine("Data export completed in " + watch.ElapsedMilliseconds + " ms");
+        //            Console.WriteLine("Data export completed in " + watch.ElapsedMilliseconds + " ms");
                     
-                }
-                catch (Exception e)
-                {
-                    MessageBox.Show("Fail to write " + fileType + " file: " + dialog.FileName + "\n" + e.Message);
-                }
-            }
-        }
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            MessageBox.Show("Fail to write " + fileType + " file: " + dialog.FileName + "\n" + e.Message);
+        //        }
+        //    }
+        //}
 
     }
 }
