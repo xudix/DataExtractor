@@ -538,10 +538,10 @@ namespace DataExtractor
         {
             extractedData.WriteToFile(StartDateTime, EndDateTime, this, "csv");
         }
-        private void ExportButton2_Click(object sender, RoutedEventArgs e)
-        {
-            extractedData.WriteToFile_PipeLine(StartDateTime, EndDateTime, this, "csv");
-        }
+        //private void ExportButton2_Click(object sender, RoutedEventArgs e)
+        //{
+        //    extractedData.WriteToFile_PipeLine(StartDateTime, EndDateTime, this, "csv");
+        //}
 
         private void Chart_MouseMove(object sender, MouseEventArgs e)
         {
