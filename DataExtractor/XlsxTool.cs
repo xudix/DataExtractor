@@ -516,6 +516,200 @@ namespace DataExtractor
             return result;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="reader"></param>
+        /// <param name="elementWanted"></param>
+        /// <returns></returns>
+        public static XmlEntry XlsxReadOneFromExposedBufferedReader(ExposedBufferedRader reader, string elementWanted)
+        {
+            string elementName;
+            char c;
+            char[] textBuffer = new char[16384];
+            char[] attributeBuffer = new char[1024];
+            char[] elementNameBuffer = new char[1024];
+            int textWriteCount = 0, attrWriteCount = 0, elementNameWriteCount = 0;
+            bool isInWantedElement = false;
+            ReaderLocationType locationType = ReaderLocationType.StartOfSearch;
+            XmlEntry result;
+            result.text = String.Empty;
+            result.xmlAttributes = new List<XmlAttributeItem>();
+            while (!reader.fileEnded)
+            //foreach(char c in reader.GetEnumerator())
+            {
+                c = reader.CurrentBuffer[reader.Index++];
+                if (isInWantedElement) // Currently in the wanted element. Will write down the current char and watch if we get to the end of the element
+                {
+                    textBuffer[textWriteCount] = c;
+                    textWriteCount++;
+                    if (textWriteCount == textBuffer.Length)
+                        Array.Resize(ref textBuffer, textBuffer.Length + 4096);
+                    switch (locationType)
+                    {
+                        case ReaderLocationType.Text:
+                            if (c == '<')
+                            {
+                                locationType = ReaderLocationType.StartElement;
+                            }
+                            break;
+                        case ReaderLocationType.StartElement:
+                            if (c == '/') // it's an EndElement
+                                locationType = ReaderLocationType.EndElement;
+                            else
+                                locationType = ReaderLocationType.Text;
+                            break;
+                        case ReaderLocationType.EndElement: // need to determine if this is the end of "elementWanted"
+                            switch (c)
+                            {
+                                case ' ': // end of element name. should not see this in endElement
+                                    elementName = new string(elementNameBuffer, 0, elementNameWriteCount);
+                                    if (elementName == elementWanted)// finished the element we want. Will return
+                                    {
+                                        if (textWriteCount > 0)
+                                            // The number of chars written to the string is reduced to takeout:
+                                            // the element name and "</ " in the EndElement
+                                            result.text = new string(textBuffer, 0, textWriteCount - elementNameWriteCount - 3);
+                                        return result;
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.Text;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                case '>':
+                                    elementName = new string(elementNameBuffer, 0, elementNameWriteCount);
+                                    if (elementName == elementWanted)// finished the element we want. Will return
+                                    {
+                                        if (textWriteCount > 0)
+                                            // The number of chars written to the string is reduced to takeout:
+                                            // the element name and "</>" in the EndElement
+                                            result.text = new string(textBuffer, 0, textWriteCount - elementNameWriteCount - 3);
+                                        return result;
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.Text;
+                                    }
+                                    elementNameWriteCount = 0;
+                                    break;
+                                default:
+                                    elementNameBuffer[elementNameWriteCount] = c;
+                                    elementNameWriteCount++;
+                                    break;
+                            }
+                            break;
+                    }
+                }
+                else // Not in the wanted element. Will not write down the current char. Watch for start element of wanted char
+                {
+                    switch (locationType) // The following code does not write anything to textBuffer. It should only write to attributes and control the locationType
+                    {
+                        case ReaderLocationType.StartOfSearch:
+                            if (c == '<')
+                            {
+                                locationType = ReaderLocationType.StartElement;
+                            }
+                            break;
+                        case ReaderLocationType.StartElement:
+                            switch (c)
+                            {
+                                case ' ': // end of element name. Upcoming things will be attributes
+                                    elementName = new string(elementNameBuffer, 0, elementNameWriteCount);
+                                    elementNameWriteCount = 0;
+                                    if (elementName == elementWanted)// got into the element we want. Will read the attribute 
+                                    {
+                                        locationType = ReaderLocationType.Attribute;
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    break;
+                                case '>': // end of element name and no attributel go to text.
+                                    elementName = new string(elementNameBuffer, 0, elementNameWriteCount);
+                                    elementNameWriteCount = 0;
+                                    if (elementName == elementWanted)// got into the element we want.
+                                    {
+                                        locationType = ReaderLocationType.Text;
+                                        isInWantedElement = true;
+                                    }
+                                    else // other element and not inside the wanted element.
+                                    {
+                                        // search for the next element
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    }
+                                    break;
+                                case '/': // end of element. 
+                                    if (elementNameWriteCount != 0) // It's not following the < sign. It's an empty element.
+                                    {
+                                        elementName = new string(elementNameBuffer, 0, elementNameWriteCount);
+                                        elementNameWriteCount = 0;
+                                        if (elementName == elementWanted)// got into the element we want. Will return
+                                        {
+                                            if (textWriteCount > 0)
+                                                result.text = new string(textBuffer, 0, textWriteCount);
+                                            return result;
+                                        }
+                                        else // other element and not inside the wanted element.
+                                        {
+                                            // search for the next element
+                                            locationType = ReaderLocationType.StartOfSearch;
+                                        }
+                                    }
+                                    else // it's following a < sign. End element. Since we are not in the wanted element, don't care about this element.
+                                        locationType = ReaderLocationType.StartOfSearch;
+                                    break;
+                                default:
+                                    elementNameBuffer[elementNameWriteCount] = c;
+                                    elementNameWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.Attribute: // Attribute only exis in the StartElement. 
+                            switch (c)
+                            {
+                                case ' ': // end of an attribute. Another attribute coming.
+                                    result.xmlAttributes.Add(new XmlAttributeItem(new string(attributeBuffer, 0, attrWriteCount)));
+                                    attrWriteCount = 0;
+                                    break;
+                                case '/': // end of attribute and the whole element. should return.
+                                    result.xmlAttributes.Add(new XmlAttributeItem(new string(attributeBuffer, 0, attrWriteCount)));
+                                    if (textWriteCount > 0)
+                                        result.text = new string(textBuffer, 0, textWriteCount);
+                                    attrWriteCount = 0;
+                                    return result;
+                                case '>': // end of attribute and start element. start text part.
+                                    result.xmlAttributes.Add(new XmlAttributeItem(new string(attributeBuffer, 0, attrWriteCount)));
+                                    attrWriteCount = 0;
+                                    locationType = ReaderLocationType.Text;
+                                    isInWantedElement = true;
+                                    break;
+                                default:
+                                    attributeBuffer[attrWriteCount] = c;
+                                    attrWriteCount++;
+                                    break;
+                            }
+                            break;
+                        case ReaderLocationType.Text: // seems to be the same as "StartOfSearch"
+                            if (c == '<')
+                            {
+                                locationType = ReaderLocationType.StartElement;
+                            }
+                            break;
+                    }
+                }
+            }
+            // get to the end of the file
+            if (textWriteCount > 0)
+                result.text = new string(textBuffer, 0, textWriteCount);
+            return result;
+        }
+
 
         public static T GetValueFromRow<T>(string row, string colRef)
         {

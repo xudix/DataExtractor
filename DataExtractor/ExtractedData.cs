@@ -563,10 +563,10 @@ namespace DataExtractor
                         }
                         // Start reading the data
                         //using (StreamReader worksheetReader = new StreamReader(xlsxFile.GetEntry(@"xl/worksheets/sheet1.xml").Open(), Encoding.UTF8, true, 10485760))
-                        using (BufferedRader worksheetReader = new BufferedRader(xlsxFile.GetEntry(@"xl/worksheets/sheet1.xml").Open(), 10485760))
+                        using (ExposedBufferedRader worksheetReader = new ExposedBufferedRader(xlsxFile.GetEntry(@"xl/worksheets/sheet1.xml").Open(), 10485760))
                         {
-                            string row = XlsxTool.XlsxReadOneFromBufferedReader(worksheetReader, "row").text;// this will be the header row
-                            row = XlsxTool.XlsxReadOneFromBufferedReader(worksheetReader, "row").text;
+                            string row = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;// this will be the header row
+                            row = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;
                             // If the List data was not initialized yet. Opening the first file, figure out the time interval between the first two lines
                             // Try to estimate the number of points to be extracted. Initialize array accordingly
                             // Then create the array for the data
@@ -575,13 +575,13 @@ namespace DataExtractor
                                 dateTime1 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row, "A"));
                                 if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
                                     break;
-                                string row2 = XlsxTool.XlsxReadOneFromBufferedReader(worksheetReader, "row").text;
+                                string row2 = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;
                                 DateTime dateTime2 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row2, "A"));
                                 // In some data files, the first line has the same time stamp with the second. 
                                 while (dateTime1 == dateTime2)
                                 {
                                     row = row2;
-                                    row2 = XlsxTool.XlsxReadOneFromBufferedReader(worksheetReader, "row").text;
+                                    row2 = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text;
                                     dateTime2 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row2, "A"));
                                 }
                                 nPoints = (int)((endDateTime - dateTime1).Ticks / (dateTime2 - dateTime1).Ticks / interval + 1);
@@ -655,7 +655,7 @@ namespace DataExtractor
                                             skipCounter++;
                                     }
                                 }
-                            } while ((row = XlsxTool.XlsxReadOneFromBufferedReader(worksheetReader, "row").text).Length > 0);
+                            } while ((row = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text).Length > 0);
                             if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
                                 break;
                         }

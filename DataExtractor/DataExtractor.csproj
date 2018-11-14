@@ -93,7 +93,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Abandoned codes.cs" />
-    <Compile Include="BuffedReader.cs" />
+    <Compile Include="BufferedReader.cs" />
     <Compile Include="XlsxTool.cs" />
     <Compile Include="PlotWindow.xaml.cs">
       <DependentUpon>PlotWindow.xaml</DependentUpon>
