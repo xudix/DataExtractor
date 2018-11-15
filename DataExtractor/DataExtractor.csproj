@@ -83,9 +83,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Abandoned codes.cs" />
     <Compile Include="BufferedReader.cs" />
-    <Compile Include="XlsxRowReader.cs" />
+    <Compile Include="XlsxReader.cs" />
     <Compile Include="XlsxTool.cs" />
     <Compile Include="PlotWindow.xaml.cs">
       <DependentUpon>PlotWindow.xaml</DependentUpon>

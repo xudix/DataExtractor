@@ -610,14 +610,14 @@ namespace DataExtractor
                                 dateTime1 = DateTime.FromOADate(XlsxTool.GetDoubleFromRow(row, "A"));
                                 if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
                                     break;
-                                else if (dateTime1 >= startDateTime) // Data point is needed
+                                else if (dateTime1 >= startDateTime) // Data point is within requested range
                                 {
-                                    
+                                    // Wait until parseRowRask task to be done so that we have updated DateTimes array
+                                    parseRowTask.Wait();
                                     if (pointCount > 0 && dateTime1 == DateTimes[pointCount - 1])
                                     {
                                         // New time stamp is same as previous
                                         // override the previous data by this one
-                                        parseRowTask.Wait();
                                         parseRowTask = Task.Run(() =>
                                         {
                                             pointCount--;
@@ -626,15 +626,13 @@ namespace DataExtractor
                                                 RawData[positions[i]][pointCount] = dataOfOnePoint[i];
                                             pointCount++;
                                             skipCounter = 1;
-
                                         });
-
                                     }
                                     else
                                     {
                                         if (skipCounter == interval) // will take the point. Otherwise, will skip
                                         {
-                                            parseRowTask.Wait();
+                                            
                                             parseRowTask = Task.Run(() =>
                                             {
                                                 if (pointCount == nPoints) // if for some reason the array is not large enough
@@ -642,7 +640,7 @@ namespace DataExtractor
                                                     // double the size of the array
                                                     nPoints *= 2;
                                                     Console.WriteLine("Expanding array from {0} to {1} elements", pointCount, nPoints);
-                                                    for (i = 0; i < indexOfTags.Count; i++)
+                                                    for (i = 0; i < positions.Length; i++)
                                                     {
                                                         float[] temp = new float[nPoints];
                                                         Array.Copy(RawData[i], temp, pointCount);
@@ -653,7 +651,6 @@ namespace DataExtractor
                                                     DateTimes = tempDateTime;
                                                 }
                                                 DateTimes[pointCount] = dateTime1;
-                                                //DateTimeStrs[pointCount] = dateTime1.ToString("MM/dd h:mm");
                                                 XlsxTool.GetFloatsFromRow(row, refOfTags, ref dataOfOnePoint);
                                                 for (i = 0; i < positions.Length; i++)
                                                     RawData[positions[i]][pointCount] = dataOfOnePoint[i];
@@ -667,9 +664,12 @@ namespace DataExtractor
                                 }
                                 row = worksheetReader.GetNextRow();
                             } while (row.Length > 0);
+                            parseRowTask.Wait();
                             //while ((row = XlsxTool.XlsxReadOneFromExposedBufferedReader(worksheetReader, "row").text).Length > 0);
                             if (dateTime1 > endDateTime) // if the time stamp is later than endDateTime, no need to continue.
-                                break;
+                            {
+                                break;// break from the foreach(fileRecord) loop
+                            }
                         }
                     }
                 }

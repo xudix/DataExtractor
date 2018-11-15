@@ -48,7 +48,7 @@ namespace DataExtractor
         // It notifies UI to update content after the back-end data is changed by program
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private List<Window> plotWindows = new List<Window>();
+        private List<PlotWindow> plotWindows = new List<PlotWindow>();
 
         public MainWindow()
         {
@@ -160,6 +160,7 @@ namespace DataExtractor
                 if (tagArray.Length > 0)
                 {
                     PickTagWindow pickTagDialog = new PickTagWindow(tagArray);
+                    pickTagDialog.Owner = this;
                     // The ShowDialog() method of Window class will show the window and disable the mian window.
                     if (pickTagDialog.ShowDialog() == true && pickTagDialog.SelectedTags != null)
                     {
@@ -200,8 +201,8 @@ namespace DataExtractor
                 {
 
                     WriteSettings();
-                    PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, Interval, Resolution);
-                    plotWindow.Show();
+                    plotWindows.Add(new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, Interval, Resolution));
+                    plotWindows.Last().Show();
                 }
                 catch(Exception ex)
                 {
@@ -215,7 +216,7 @@ namespace DataExtractor
         {
             if (SelectedTags != null && selectedFiles != null)
             {
-                (new ExtractedData(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, 1)).WriteToFile(StartDateTime, EndDateTime, this, "csv", filePath);
+                (new ExtractedData(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, Interval)).WriteToFile(StartDateTime, EndDateTime, this, "csv", filePath);
                 WriteSettings();
             }
         }
@@ -228,6 +229,8 @@ namespace DataExtractor
             Properties.Settings.Default.Tags = SelectedTags;
             Properties.Settings.Default.DataFiles = SelectedFiles;
             Properties.Settings.Default.FilePath = filePath;
+            Properties.Settings.Default.Interval = Interval;
+            Properties.Settings.Default.Resolution = Resolution;
             Properties.Settings.Default.Save();
         }
 
@@ -241,6 +244,8 @@ namespace DataExtractor
             SelectedTags = Properties.Settings.Default.Tags;
             SelectedFiles = Properties.Settings.Default.DataFiles;
             filePath = Properties.Settings.Default.FilePath;
+            Interval = Properties.Settings.Default.Interval;
+            Resolution = Properties.Settings.Default.Resolution;
         }
 
         // Selected Tags. It's an array of string.
