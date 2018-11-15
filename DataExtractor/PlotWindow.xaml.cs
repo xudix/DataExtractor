@@ -252,9 +252,11 @@ namespace DataExtractor
             }
         }
         
-        // Property for the location of CursorLine1
-        // Cursor is a rectangular with Width=1
+        
         private string cursor1Time;
+        /// <summary>
+        /// Property for the displayed time for cursor 1
+        /// </summary>
         public string Cursor1Time
         {
             get => cursor1Time;
@@ -268,6 +270,9 @@ namespace DataExtractor
             }
         }
 
+        /// <summary>
+        ///  Property for the location of CursorLine1
+        /// </summary>
         private double cursor1X;
         public double Cursor1X
         {

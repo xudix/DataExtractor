@@ -29,7 +29,7 @@ namespace DataExtractor
 
     // Possible improvements:
     // 
-    // Data cursor
+    // (DONE) Data cursor
     // date selector for start and end dates
     // Rewrite the ControlTemplate of date input to include a interactive date picker
     // Drag-and-drop file import

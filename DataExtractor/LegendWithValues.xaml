@@ -14,7 +14,8 @@
     </UserControl.Resources>
     <UserControl.Template>
         <ControlTemplate>
-            <StackPanel>
+            <StackPanel Margin="0,0,15,0">
+                <!--Put a right margin of 15 on the stack panel because the width of the XValueText in the TextBlock may change, but the legend width won't change. So leave some margin here to display the full text-->
                 <TextBlock Text="{Binding XValue}"/>
                 <ItemsControl ItemsSource="{Binding SeriesWithValue}">
                     <ItemsControl.ItemsPanel>
