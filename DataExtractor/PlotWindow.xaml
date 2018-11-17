@@ -41,10 +41,9 @@
             
             <TextBlock Text="{Binding ElementName=plotTitleInput, Path=Text}" Grid.Column="1" TextAlignment="Center"
                        MouseMove="Chart_MouseMove" Background="Transparent"/>
-            <ContentControl Grid.Column="1" Grid.Row="1" MouseMove="Chart_MouseMove" Background="Transparent" />
             <lvc:CartesianChart x:Name="Chart" Grid.Column="1" Grid.Row="1" Series="{Binding PointsToPlot}" LegendLocation="Right"
                             DisableAnimations="True" Hoverable="False" DataTooltip="{x:Null}"
-                            MouseMove="Chart_MouseMove" Background="Transparent" >
+                            MouseMove="Chart_MouseMove" Background="Transparent" MouseLeftButtonDown="Chart_MouseLeftButtonDown">
                 <lvc:CartesianChart.ChartLegend>
                     <StaticResource ResourceKey="LegendWithValues"/>
                 </lvc:CartesianChart.ChartLegend>
@@ -73,7 +72,7 @@
                     </Style>
                 </Rectangle.Style>
             </Rectangle>
-            <ContentControl Grid.Column="1" Grid.Row="1" PreviewMouseDoubleClick="CartesianChart_MouseDoubleClick">
+            <ContentControl Grid.Column="1" Grid.Row="1" MouseDoubleClick="CartesianChart_MouseDoubleClick" MouseLeftButtonDown="Chart_MouseLeftButtonDown">
                 <Line x:Name="CursorLine1" Grid.Column="1" Grid.Row="1" 
                        Stroke="Red" StrokeThickness="1" MouseMove="Chart_MouseMove" X1="{Binding Cursor1X}" X2="{Binding Cursor1X}"
                        >
