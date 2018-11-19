@@ -21,6 +21,13 @@ namespace DataExtractor
         // This event is required by the INotifyPropertyChanged interface.
         // It notifies UI to update content after the back-end data is changed by program
         public event PropertyChangedEventHandler PropertyChanged;
+
+        /// <summary>
+        /// This event is fired when SyncZoom is true and the X range of the plot is changed.
+        /// The event fired here is subscribed by the MainWindow, which will transmit the event to other PlotWindows
+        /// The listeners (PlotWindows) with SyncZoom set to true will update the X range of their plot
+        /// </summary>
+        public event EventHandler<PlotRangeChangedEventArgs> PlotRangeChanged = delegate { };
         
 
         // These two properties are the binding path for the plot
@@ -91,6 +98,8 @@ namespace DataExtractor
                 {
                     startDateTime = value;
                     UpdatePoints();
+                    if(SyncZoom)
+                        PlotRangeChanged(this, new PlotRangeChangedEventArgs(startDateTime, endDateTime, this));
                     NotifyPropertyChanged();
                 }
             }
@@ -110,6 +119,8 @@ namespace DataExtractor
                 {
                     endDateTime = value;
                     UpdatePoints();
+                    if(SyncZoom)
+                        PlotRangeChanged(this, new PlotRangeChangedEventArgs(startDateTime, endDateTime, this));
                     NotifyPropertyChanged();
                 }
             }
@@ -287,6 +298,11 @@ namespace DataExtractor
             }
         }
 
+        /// <summary>
+        /// This property decides whether this plot window will zoom with other synchronized plot windows.
+        /// </summary>
+        /// It's also binded to the SyncZoomCheckBox
+        public bool SyncZoom { get; set; }
 
         // The List of PlotRange will keep track of all previous zooming activities. Thus, zooming can be reversed
         private List<PlotRange> plotRanges = new List<PlotRange>();
@@ -296,7 +312,7 @@ namespace DataExtractor
         private int currentZoomIndex;
 
         // Constructor
-        public PlotWindow(DateTime startDateTime, DateTime endDateTime, string[] selectedTags, string[] selectedFiles, int interval = 1, int resolution = 500)
+        public PlotWindow(DateTime startDateTime, DateTime endDateTime, string[] selectedTags, string[] selectedFiles, int interval = 1, int resolution = 1000, MainWindow parent = null)
         {
             
             extractedData = new ExtractedData(startDateTime, endDateTime, selectedTags, selectedFiles, interval);
@@ -311,6 +327,11 @@ namespace DataExtractor
             // Record the zooming history
             plotRanges.Add(new PlotRange(StartDateTime, EndDateTime, YMin, YMax));
             currentZoomIndex = 0;
+
+            if(parent != null)
+                // Subscribe the plotwindow to the
+                WeakEventManager<MainWindow, PlotRangeChangedEventArgs>.AddHandler(parent, "TransmitPlotRangeChanged", OnPlotWindowRangeChanged);
+
 
         }
 
@@ -467,7 +488,12 @@ namespace DataExtractor
         private void ZoomPrevious_Click(object sender, RoutedEventArgs e)
             => ZoomPrevious();
 
-        // Roll back the plot range to previous in List plotRanges 
+
+        /// <summary>
+        /// Roll back the plot range to previous in List plotRanges
+        /// </summary>
+        /// <param name="zoomIndex">The index of the requested range in List PlotRanges.
+        /// zoomIndex = 0 corresponds to the starting range; zoomIndex = -1 will move the range back by one step</param>
         private void ZoomPrevious(int zoomIndex = -1)
         {
             // if currentZoomIndex is already 0, no need to do anything
@@ -682,16 +708,49 @@ namespace DataExtractor
                     endDateTime = ExtractedData.ParseDateTime(DateTimeStrs[endIndex]);
                     NotifyPropertyChanged("EndDateTime");
                     UpdatePoints();
+                    PlotRangeChanged(this, new PlotRangeChangedEventArgs(startDateTime, endDateTime, this));
                 }
                 RecordRange();
             }
-            else
-            {
-                // Not zooming. simply clicking
-                //Will update the values shown in the legend
+            //else
+            //{
+            //    // Not zooming. simply clicking
+            //    //Will update the values shown in the legend
                 
 
+            //}
+        }
+
+        /// <summary>
+        /// Respond to the PlotRangeChanged events raised by other PlotWindows and transmitted by the MainWindow
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="e"></param>
+        private void OnPlotWindowRangeChanged(object source, PlotRangeChangedEventArgs e)
+        {
+            if(e.InitialSource as PlotWindow != this)
+            {
+                if (SyncZoom) // Only when SyncZoom == true will this window respond to this event
+                {
+                    if (e.StartDateTime != StartDateTime || e.EndDateTime != EndDateTime)
+                    {
+                        // We are modifying the fields to avoid firing the PlotRangeChanged event again.
+                        if (e.StartDateTime != StartDateTime)
+                        {
+                            startDateTime = e.StartDateTime;
+                            NotifyPropertyChanged("StartDateTime");
+                        }
+                        if (e.EndDateTime != EndDateTime)
+                        {
+                            endDateTime = e.EndDateTime;
+                            NotifyPropertyChanged("EndDateTime");
+                        }
+                        UpdatePoints();
+                        RecordRange();
+                    }
+                }
             }
+            
         }
 
         // update the tag values based on the X axis positionin the chart
@@ -718,7 +777,7 @@ namespace DataExtractor
             }
         }
 
-        private struct PlotRange
+        public struct PlotRange
         {
             public DateTime startDateTime;
             public DateTime endDateTime;
