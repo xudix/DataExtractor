@@ -84,6 +84,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="BufferedReader.cs" />
+    <Compile Include="PlotRangeChangeEventArgs.cs" />
     <Compile Include="XlsxReader.cs" />
     <Compile Include="XlsxTool.cs" />
     <Compile Include="PlotWindow.xaml.cs">

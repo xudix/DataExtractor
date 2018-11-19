@@ -48,6 +48,13 @@ namespace DataExtractor
         // It notifies UI to update content after the back-end data is changed by program
         public event PropertyChangedEventHandler PropertyChanged;
 
+        /// <summary>
+        /// This event is fired when SyncZoom is true and the X range of the plot is changed.
+        /// When the MainWindow receive a PlotRangeChanged event from a PlotWindow, it transmit it to all PlotWindows.
+        /// The listeners (PlotWindows) with SyncZoom set to true will update the X range of their plot
+        /// </summary>
+        public event EventHandler<PlotRangeChangedEventArgs> TransmitPlotRangeChanged = delegate { };
+
         private List<PlotWindow> plotWindows = new List<PlotWindow>();
 
         public MainWindow()
@@ -201,15 +208,40 @@ namespace DataExtractor
                 {
 
                     WriteSettings();
-                    plotWindows.Add(new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, Interval, Resolution));
-                    plotWindows.Last().Show();
+                    PlotWindow plotWindow = new PlotWindow(StartDateTime, EndDateTime, SelectedTags, SelectedFiles, Interval, Resolution, this);
+                    plotWindows.Add(plotWindow);
+                    plotWindow.Show();
+                    WeakEventManager<PlotWindow, EventArgs>.AddHandler(plotWindow, "Closed", OnPlotWindowClosed);
+                    WeakEventManager<PlotWindow, PlotRangeChangedEventArgs>.AddHandler(plotWindow, "PlotRangeChanged", OnPlotWindowRangeChanged);
+
+                    GC.Collect();
                 }
                 catch(Exception ex)
                 {
                     MessageBox.Show("Error: Fail to show plot window. Original error: " + ex.Message + "\n" + ex.StackTrace);
                 }
             }
-                
+        }
+
+        /// <summary>
+        /// Remove the closed plot window from the List plotWindows
+        /// </summary>
+        /// <param name="source">The window being closed</param>
+        /// <param name="e"></param>
+        private void OnPlotWindowClosed(object source, EventArgs e)
+        {
+            plotWindows.Remove(source as PlotWindow);
+            GC.Collect();
+        }
+
+        /// <summary>
+        /// Transmit the PlotWindowRangeChagned event back to the plot windows
+        /// </summary>
+        /// <param name="source">The plot window </param>
+        /// <param name="e"></param>
+        private void OnPlotWindowRangeChanged(object source, PlotRangeChangedEventArgs e)
+        {
+            TransmitPlotRangeChanged(this, e);
         }
 
         private void ExportButton_Click(object sender, RoutedEventArgs e)
