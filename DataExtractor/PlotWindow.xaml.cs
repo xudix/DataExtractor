@@ -629,7 +629,7 @@ namespace DataExtractor
                     ZoomBoxWidth = 0;
                 }
             }
-            else 
+            else // not zooming
             {
                 if (e.LeftButton == MouseButtonState.Pressed)
                 {
@@ -647,6 +647,13 @@ namespace DataExtractor
                 }
                     
             }
+            e.Handled = true;
+        }
+
+        private void Chart_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            mouseDownPoint = e.GetPosition(Chart);
+            IsZoomDrawing = true;   
         }
 
         private void Chart_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -777,7 +784,7 @@ namespace DataExtractor
             }
         }
 
-        public struct PlotRange
+        private struct PlotRange
         {
             public DateTime startDateTime;
             public DateTime endDateTime;
