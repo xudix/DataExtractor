@@ -515,7 +515,7 @@ namespace DataExtractor
             YMin = plotRanges[currentZoomIndex].yMin;
         }
         
-        // Roll back the plot range to previous one in List plotRanges 
+        // Roll forward the plot range to next one in List plotRanges 
         private void ZoomNext_Click(object sender, RoutedEventArgs e)
         {
             if (currentZoomIndex < plotRanges.Count-1)

@@ -40,7 +40,7 @@ namespace DataExtractor
             {
                 DateTime temp = startDateTime;
                 startDateTime = endDateTime;
-                endDateTime = startDateTime;
+                endDateTime = temp;
             }
             // Determine what files are needed
             // If request time ends before first file, no data is available

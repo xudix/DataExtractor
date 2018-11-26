@@ -174,7 +174,6 @@ namespace DataExtractor
                         SelectedTags = (SelectedTags != null) ? SelectedTags.Concat(pickTagDialog.SelectedTags).ToArray() : pickTagDialog.SelectedTags;
                     }
                 }
-
             }
         }
 
